@@ -77,8 +77,8 @@ function renderHealth(health) {
   const healthy = health.status === "ok";
   dot.classList.toggle("online", healthy);
   text.textContent = healthy
-    ? `Runtime healthy · ${new Date(health.time).toLocaleTimeString()}`
-    : "Runtime unhealthy";
+    ? `运行正常 · ${new Date(health.time).toLocaleTimeString()}`
+    : "运行异常";
 }
 
 function renderStats(stats) {
@@ -93,9 +93,9 @@ function renderStats(stats) {
   ];
 
   document.getElementById("stats-grid").innerHTML = data.map(([name, value]) => `
-    <article class="stat">
-      <span>${name}</span>
-      <strong>${value ?? 0}</strong>
+    <article class="metric-card">
+      <span class="metric-label">${name}</span>
+      <strong class="metric-value">${value ?? 0}</strong>
     </article>
   `).join("");
 }
@@ -119,8 +119,8 @@ function renderDevices() {
           <span class="pill ${item.online ? "online" : "offline"}">${item.online ? "online" : "offline"}</span>
         </div>
         <div class="muted mono">${escapeHTML(item.device.id)}</div>
-        <div class="muted">Last seen: ${formatTime(item.last_seen)}</div>
-        <div class="muted">Token: ${escapeHTML(item.device.token || "")}</div>
+        <div class="muted">最后活跃 ${formatTime(item.last_seen)}</div>
+        <div class="muted mono">Token ${escapeHTML(item.device.token || "")}</div>
       </button>
     </article>
   `).join("");
@@ -157,10 +157,23 @@ async function refreshSelectedDevice() {
         <strong>${escapeHTML(device.device.name)}</strong>
         <span class="pill ${device.online ? "online" : "offline"}">${device.online ? "online" : "offline"}</span>
       </div>
-      <div class="muted mono">${escapeHTML(device.device.id)}</div>
-      <div class="muted">创建时间: ${formatTime(device.device.created_at)}</div>
-      <div class="muted">连接时间: ${formatTime(device.connected_at)}</div>
-      <div class="muted">最后活跃: ${formatTime(device.last_seen)}</div>
+      <div class="detail-meta">
+        <div class="muted mono">${escapeHTML(device.device.id)}</div>
+        <div class="detail-meta-grid">
+          <div class="meta-tile">
+            <span>创建时间</span>
+            <strong>${formatTime(device.device.created_at)}</strong>
+          </div>
+          <div class="meta-tile">
+            <span>连接时间</span>
+            <strong>${formatTime(device.connected_at)}</strong>
+          </div>
+          <div class="meta-tile">
+            <span>最后活跃</span>
+            <strong>${formatTime(device.last_seen)}</strong>
+          </div>
+        </div>
+      </div>
       <pre>${escapeHTML(pretty(device.device.metadata))}</pre>
     </article>
     <article class="detail-card">
@@ -226,8 +239,11 @@ function renderSimulators() {
           <div class="muted mono">${escapeHTML(sim.device.id)}</div>
           <div class="muted mono">${escapeHTML(sim.id)}</div>
         </div>
-        <div class="line">
+        <div class="sim-summary">
           <span class="pill ${sim.connected ? "online" : "offline"}">${sim.connected ? "connected" : "disconnected"}</span>
+          <span class="pill">ack ${sim.auto_ack ? "on" : "off"}</span>
+          <span class="pill">ping ${sim.auto_ping ? "on" : "off"}</span>
+          <span class="pill">telemetry ${sim.auto_telemetry ? `${sim.telemetry_interval_ms}ms` : "manual"}</span>
         </div>
       </div>
       <div class="sim-actions">
