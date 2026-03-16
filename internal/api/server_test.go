@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -219,6 +220,9 @@ func TestProtocolCatalogAndHTTPIngestFlow(t *testing.T) {
 	seenCatalog := make(map[string]bool, len(catalog))
 	for _, item := range catalog {
 		seenCatalog[item.Protocol] = true
+		if item.Protocol == "mqtt_json" && item.IngestMode != "broker_mqtt" {
+			t.Fatalf("mqtt catalog ingest_mode = %q, want broker_mqtt", item.IngestMode)
+		}
 	}
 	for _, protocol := range []string{"modbus_tcp", "bacnet_ip"} {
 		if !seenCatalog[protocol] {
@@ -564,6 +568,49 @@ func TestUIEndpoints(t *testing.T) {
 
 	if assetResp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /assets/app.js status = %d, want %d", assetResp.StatusCode, http.StatusOK)
+	}
+}
+
+func TestMetricsEndpoints(t *testing.T) {
+	t.Parallel()
+
+	server := newTestServer()
+	httpServer := httptest.NewServer(server.Handler())
+	defer httpServer.Close()
+
+	jsonResp, err := http.Get(httpServer.URL + "/metrics")
+	if err != nil {
+		t.Fatalf("GET /metrics error = %v", err)
+	}
+	defer jsonResp.Body.Close()
+
+	var stats model.Stats
+	if err := json.NewDecoder(jsonResp.Body).Decode(&stats); err != nil {
+		t.Fatalf("decode /metrics json error = %v", err)
+	}
+	if stats.Storage.Backend == "" {
+		t.Fatal("storage backend should not be empty")
+	}
+	if stats.Runtime.Goroutines <= 0 {
+		t.Fatalf("runtime goroutines = %d, want > 0", stats.Runtime.Goroutines)
+	}
+
+	promReq, err := http.NewRequest(http.MethodGet, httpServer.URL+"/metrics?format=prometheus", nil)
+	if err != nil {
+		t.Fatalf("NewRequest(prometheus) error = %v", err)
+	}
+	promResp, err := http.DefaultClient.Do(promReq)
+	if err != nil {
+		t.Fatalf("GET /metrics?format=prometheus error = %v", err)
+	}
+	defer promResp.Body.Close()
+
+	body, _ := io.ReadAll(promResp.Body)
+	if !strings.Contains(string(body), "mvp_registered_devices") {
+		t.Fatalf("prometheus body missing metric, body=%s", string(body))
+	}
+	if !strings.Contains(string(body), "mvp_runtime_goroutines") {
+		t.Fatalf("prometheus body missing runtime metric, body=%s", string(body))
 	}
 }
 

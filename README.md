@@ -26,14 +26,16 @@
 
 - 方案计划：[doc/mvp-platform-plan.md](doc/mvp-platform-plan.md)
 - 协议接入手册：[doc/protocol-access-guide.md](doc/protocol-access-guide.md)
+- 性能与基准测试：[doc/performance-guide.md](doc/performance-guide.md)
 - ESP8266 通用固件：[firmware/esp8266-universal/README.md](firmware/esp8266-universal/README.md)
 
 ## 当前限制
 
 - 当前是单节点单二进制 MVP
-- 默认使用内存存储，进程重启后状态不会保留
-- 当前内置监听入口是 `TCP + JSON Lines` 和 `HTTP Push`
+- 默认使用文件快照持久化，底层仍是单进程本地 JSON 存储
+- 当前内置监听入口是 `TCP + JSON Lines`、`HTTP Push` 和 `MQTT`
 - 200k 设备接入目前是架构目标，不是这版单节点的实测结论
+- `Modbus / OPC UA / BACnet / LoRaWAN` 仍通过“边缘采集器 / 协议桥 -> HTTP Push”接入
 
 ## 本地运行
 
@@ -57,18 +59,21 @@ go build -o bin\mvp-platform.exe .\cmd\mvp-platform
 
 - HTTP API: `:8080`
 - Device Gateway: `:18830`
+- MQTT Broker: `:1883`
 
 启动后直接打开：
 
 - 控制台：`http://127.0.0.1:8080/`
 - 健康检查：`http://127.0.0.1:8080/healthz`
 - 指标：`http://127.0.0.1:8080/metrics`
+- Prometheus 指标：`http://127.0.0.1:8080/metrics?format=prometheus`
 
 ## 环境变量
 
 - `MVP_HTTP_ADDR`，默认 `:8080`
 - `MVP_GATEWAY_ADDR`，默认 `:18830`
 - `MVP_GATEWAY_DIAL_ADDR`，默认从 `MVP_GATEWAY_ADDR` 推导，通常为 `127.0.0.1:18830`
+- `MVP_MQTT_ADDR`，默认 `:1883`
 - `MVP_LOG_LEVEL`，默认 `info`
 - `MVP_SHUTDOWN_TIMEOUT`，默认 `10s`
 - `MVP_DEVICE_AUTH_TIMEOUT`，默认 `15s`
@@ -77,11 +82,15 @@ go build -o bin\mvp-platform.exe .\cmd\mvp-platform
 - `MVP_DEVICE_QUEUE_SIZE`，默认 `128`
 - `MVP_TELEMETRY_RETENTION`，默认 `200`
 - `MVP_MAX_MESSAGE_BYTES`，默认 `1048576`
+- `MVP_STORE_BACKEND`，默认 `file`，可选 `file` / `memory`
+- `MVP_STORE_PATH`，默认 `./data/mvp-platform-state.json`
 
 说明：
 
 - `MVP_GATEWAY_ADDR` 是设备网关监听地址
 - `MVP_GATEWAY_DIAL_ADDR` 是内置模拟器拨号到设备网关时使用的地址
+- `MVP_MQTT_ADDR` 是内置 MQTT Broker 监听地址
+- `MVP_STORE_BACKEND=file` 时，每次写操作都会把状态原子快照到 `MVP_STORE_PATH`
 - 如果网关监听 `0.0.0.0:18830`，内置模拟器通常仍使用 `127.0.0.1:18830`
 
 ## 控制台能力
@@ -98,6 +107,7 @@ go build -o bin\mvp-platform.exe .\cmd\mvp-platform
 - 在 Config Center 中创建远程配置模板并下发到选中设备
 - 在 Simulator Lab 中创建和控制测试设备模拟器
 - 支持控制台中英文切换
+- `metrics` 同时支持 JSON 和 Prometheus 文本格式
 
 ## ESP8266 一键接入固件
 
@@ -123,6 +133,7 @@ go build -o bin\mvp-platform.exe .\cmd\mvp-platform
 
 - `TCP + JSON Lines` 直连接入
 - `HTTP Push` 统一接入
+- `MQTT Broker` 直连接入
 
 同时，产品侧已经内置常见协议模板，便于通过边缘网关 / 协议桥接入：
 
@@ -137,10 +148,37 @@ go build -o bin\mvp-platform.exe .\cmd\mvp-platform
 
 说明：
 
-- 当前真正内置监听的仍然是 `TCP Gateway` 和 `HTTP Push`
-- `MQTT / Modbus / OPC UA / BACnet / LoRaWAN` 在这一版通过“产品接入配置 + HTTP Push 统一入口”承接桥接数据
+- 当前真正内置监听的是 `TCP Gateway`、`HTTP Push` 和 `MQTT Broker`
+- `Modbus / OPC UA / BACnet / LoRaWAN` 在这一版通过“产品接入配置 + HTTP Push 统一入口”承接桥接数据
 - 可通过 `GET /api/v1/protocol-catalog` 查看内置协议与传感器模板
 - 详细接入说明见 [doc/protocol-access-guide.md](doc/protocol-access-guide.md)
+
+## MQTT 适配
+
+这一版新增了内置 MQTT Broker，默认监听 `:1883`。
+
+设备侧推荐：
+
+- `ClientID`: 自定义唯一值
+- `Username`: `device_id`
+- `Password`: `device_token`
+- 上行 Topic：`devices/{device_id}/up`
+- 下行 Topic：`devices/{device_id}/down`
+- 回执 Topic：`devices/{device_id}/ack`
+
+如果产品的 `access_profile.topic` 设置成带 `{device_id}` 的模板，例如：
+
+```json
+{
+  "transport":"mqtt",
+  "protocol":"mqtt_json",
+  "ingest_mode":"broker_mqtt",
+  "payload_format":"json_values",
+  "topic":"mvp/{device_id}/up"
+}
+```
+
+平台会用这个模板推导对应的下行和 ACK Topic。
 
 ## 典型 API
 
@@ -320,6 +358,24 @@ curl -X POST http://127.0.0.1:8080/api/v1/devices/<device_id>/commands \
   -d '{"name":"reboot","params":{"delay":1}}'
 ```
 
+MQTT 上报示例：
+
+```json
+{
+  "values":{"temperature":24.6,"humidity":56}
+}
+```
+
+MQTT ACK 示例：
+
+```json
+{
+  "command_id":"cmd_xxx",
+  "status":"ok",
+  "message":"accepted"
+}
+```
+
 ## 设备协议
 
 协议格式：每条消息一行 JSON。
@@ -379,6 +435,17 @@ curl -X POST http://127.0.0.1:8080/api/v1/devices/<device_id>/commands \
 - 构建 `nodemcuv2`
 - 构建 `d1_mini`
 - 上传 `esp8266-universal_<board>.bin` 到 Actions artifact
+
+## 压测与基准测试
+
+仓库已经补充基准测试：
+
+- `internal/core/service_benchmark_test.go`
+- `internal/api/ingest_benchmark_test.go`
+- `cmd/mvp-loadgen`
+
+运行方式见 [doc/performance-guide.md](doc/performance-guide.md)。
+做吞吐压测时建议优先使用 `MVP_STORE_BACKEND=memory`；要验证落盘路径时再切回 `file`。
 
 ## 后续建议
 

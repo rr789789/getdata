@@ -102,15 +102,15 @@ func DefaultProtocolCatalog() []ProtocolCatalogEntry {
 			},
 		},
 		{
-			ID:             "mqtt-json-bridge",
-			Name:           "MQTT JSON Bridge",
-			Description:    "MQTT broker data forwarded by an edge bridge into the HTTP ingest endpoint.",
+			ID:             "mqtt-json-direct",
+			Name:           "MQTT JSON Direct",
+			Description:    "Devices connect directly to the built-in MQTT broker and publish telemetry as JSON.",
 			Transport:      "mqtt",
 			Protocol:       "mqtt_json",
-			IngestMode:     "bridge_http",
+			IngestMode:     "broker_mqtt",
 			PayloadFormat:  "json_values",
 			SensorTemplate: "power-meter",
-			ExampleTopic:   "factory/line-a/meter-01/up",
+			ExampleTopic:   "devices/{device_id}/up",
 			CommonSensors:  []string{"power_meter", "energy_meter", "gateway"},
 			ThingModel: ThingModel{
 				Properties: []ThingModelProperty{
@@ -123,14 +123,13 @@ func DefaultProtocolCatalog() []ProtocolCatalogEntry {
 			AccessProfile: ProductAccessProfile{
 				Transport:      "mqtt",
 				Protocol:       "mqtt_json",
-				IngestMode:     "bridge_http",
+				IngestMode:     "broker_mqtt",
 				PayloadFormat:  "json_values",
 				AuthMode:       "token",
 				SensorTemplate: "power-meter",
-				Topic:          "factory/+/+/up",
+				Topic:          "devices/{device_id}/up",
 			},
 			ExamplePayload: map[string]any{
-				"token":  "device_token",
 				"values": map[string]any{"voltage": 220.6, "current": 4.1, "power": 905.2, "energy": 10234.7},
 			},
 		},

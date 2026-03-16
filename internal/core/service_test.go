@@ -172,6 +172,46 @@ func TestServiceLifecycle(t *testing.T) {
 	if stats.CommandAcks != 1 {
 		t.Fatalf("CommandAcks = %d, want 1", stats.CommandAcks)
 	}
+	if stats.Storage.Backend != "memory" {
+		t.Fatalf("Storage.Backend = %q, want memory", stats.Storage.Backend)
+	}
+	if stats.Storage.Devices != 1 {
+		t.Fatalf("Storage.Devices = %d, want 1", stats.Storage.Devices)
+	}
+	if stats.Transport.TCPCommandsPublished != 1 {
+		t.Fatalf("Transport.TCPCommandsPublished = %d, want 1", stats.Transport.TCPCommandsPublished)
+	}
+	if stats.Runtime.Goroutines <= 0 {
+		t.Fatalf("Runtime.Goroutines = %d, want > 0", stats.Runtime.Goroutines)
+	}
+}
+
+func TestCreateProductNormalizesMQTTAccessProfile(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService()
+	ctx := context.Background()
+
+	product, err := service.CreateProduct(ctx, "mqtt-product", "mqtt profile", nil, model.ProductAccessProfile{
+		Transport:     "mqtt",
+		Protocol:      "mqtt_json",
+		PayloadFormat: "json_values",
+		AuthMode:      "token",
+		Topic:         "bench/{device_id}/up",
+	}, model.ThingModel{
+		Properties: []model.ThingModelProperty{
+			{Identifier: "temperature", Name: "Temperature", DataType: "float"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateProduct() error = %v", err)
+	}
+	if product.AccessProfile.IngestMode != "broker_mqtt" {
+		t.Fatalf("AccessProfile.IngestMode = %q, want broker_mqtt", product.AccessProfile.IngestMode)
+	}
+	if product.AccessProfile.Transport != "mqtt" {
+		t.Fatalf("AccessProfile.Transport = %q, want mqtt", product.AccessProfile.Transport)
+	}
 }
 
 func TestSendCommandOfflineMarksFailed(t *testing.T) {

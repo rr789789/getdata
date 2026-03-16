@@ -241,6 +241,61 @@ type Stats struct {
 	TelemetryReceived   int64 `json:"telemetry_received"`
 	CommandsSent        int64 `json:"commands_sent"`
 	CommandAcks         int64 `json:"command_acks"`
+	StartedAt           time.Time      `json:"started_at"`
+	UptimeSeconds       int64          `json:"uptime_seconds"`
+	Runtime             RuntimeStats   `json:"runtime"`
+	Storage             StorageStats   `json:"storage"`
+	Ingress             IngressStats   `json:"ingress"`
+	Transport           TransportStats `json:"transport"`
+}
+
+type RuntimeStats struct {
+	Goroutines      int    `json:"goroutines"`
+	HeapAllocBytes  uint64 `json:"heap_alloc_bytes"`
+	HeapInuseBytes  uint64 `json:"heap_inuse_bytes"`
+	StackInuseBytes uint64 `json:"stack_inuse_bytes"`
+	SysBytes        uint64 `json:"sys_bytes"`
+	NumGC           uint32 `json:"num_gc"`
+}
+
+type StorageStats struct {
+	Backend          string     `json:"backend"`
+	PersistencePath  string     `json:"persistence_path,omitempty"`
+	Products         int64      `json:"products"`
+	Devices          int64      `json:"devices"`
+	Groups           int64      `json:"groups"`
+	Rules            int64      `json:"rules"`
+	ConfigProfiles   int64      `json:"config_profiles"`
+	Shadows          int64      `json:"shadows"`
+	Commands         int64      `json:"commands"`
+	Alerts           int64      `json:"alerts"`
+	TelemetrySeries  int64      `json:"telemetry_series"`
+	TelemetrySamples int64      `json:"telemetry_samples"`
+	LastPersistedAt  *time.Time `json:"last_persisted_at,omitempty"`
+	PersistErrors    int64      `json:"persist_errors"`
+}
+
+type IngressStats struct {
+	HTTPRequests          int64 `json:"http_requests"`
+	HTTPErrors            int64 `json:"http_errors"`
+	HTTPIngestAccepted    int64 `json:"http_ingest_accepted"`
+	HTTPIngestRejected    int64 `json:"http_ingest_rejected"`
+	TCPTelemetryAccepted  int64 `json:"tcp_telemetry_accepted"`
+	TCPCommandAcks        int64 `json:"tcp_command_acks"`
+	MQTTMessagesReceived  int64 `json:"mqtt_messages_received"`
+	MQTTTelemetryAccepted int64 `json:"mqtt_telemetry_accepted"`
+	MQTTCommandAcks       int64 `json:"mqtt_command_acks"`
+	BytesIngested         int64 `json:"bytes_ingested"`
+	TelemetryValues       int64 `json:"telemetry_values"`
+}
+
+type TransportStats struct {
+	TCPOnlineDevices         int64 `json:"tcp_online_devices"`
+	MQTTOnlineDevices        int64 `json:"mqtt_online_devices"`
+	TCPCommandsPublished     int64 `json:"tcp_commands_published"`
+	MQTTCommandsPublished    int64 `json:"mqtt_commands_published"`
+	MQTTConnectionsAccepted  int64 `json:"mqtt_connections_accepted"`
+	MQTTConnectionsRejected  int64 `json:"mqtt_connections_rejected"`
 }
 
 type SimulatorLogEntry struct {

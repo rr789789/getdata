@@ -22,7 +22,11 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	application := app.New(cfg, logger)
+	application, err := app.New(cfg, logger)
+	if err != nil {
+		logger.Error("failed to initialize application", "error", err)
+		os.Exit(1)
+	}
 	if err := application.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("application stopped with error", "error", err)
 		os.Exit(1)

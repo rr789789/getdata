@@ -31,6 +31,10 @@ const I18N = {
     connections_metric: "连接",
     telemetry_metric: "遥测",
     command_ack_metric: "命令回执",
+    http_ingest_metric: "HTTP 接入成功",
+    mqtt_metric: "MQTT 消息",
+    samples_metric: "遥测样本",
+    persist_errors_metric: "持久化错误",
     no_products: "暂无产品。",
     no_devices: "暂无设备。",
     no_groups: "暂无分组。",
@@ -118,6 +122,10 @@ const I18N = {
     connections_metric: "Connections",
     telemetry_metric: "Telemetry",
     command_ack_metric: "Command Ack",
+    http_ingest_metric: "HTTP Ingest",
+    mqtt_metric: "MQTT Messages",
+    samples_metric: "Telemetry Samples",
+    persist_errors_metric: "Persist Errors",
     no_products: "No products yet.",
     no_devices: "No devices yet.",
     no_groups: "No groups yet.",
@@ -349,17 +357,17 @@ function applyTranslations() {
     : "Product modeling, fleet governance, protocol onboarding and simulator testing in one place");
   setText(".hero-copy .copy", appState.locale === "zh"
     ? "控制台参考企业物联网平台布局，补充了多协议产品接入配置、HTTP Push 接入和常见传感器协议模板。"
-    : "This console follows an enterprise IoT control-plane style and now adds multi-protocol access profiles, HTTP push ingest and common sensor protocol templates.");
+    : "This console follows an enterprise IoT control-plane style and now adds native TCP, HTTP and MQTT access profiles plus common sensor protocol templates.");
   setText(".hero-glance .glance-card:nth-of-type(1) .glance-label", appState.locale === "zh" ? "控制面" : "Control Plane");
   setText(".hero-glance .glance-card:nth-of-type(1) strong", appState.locale === "zh" ? "产品 / 设备 / 规则 / 协议" : "Product / Device / Rule / Access");
   setText(".hero-glance .glance-card:nth-of-type(1) small", appState.locale === "zh"
     ? "统一管理物模型、设备分组、告警生命周期、配置模板和接入协议。"
     : "Manage thing models, groups, alert lifecycle, config profiles and access protocols.");
   setText(".hero-glance .glance-card:nth-of-type(2) .glance-label", appState.locale === "zh" ? "接入链路" : "Gateway Path");
-  setText(".hero-glance .glance-card:nth-of-type(2) strong", appState.locale === "zh" ? "TCP / HTTP Push / Bridge" : "TCP / HTTP Push / Bridge");
+  setText(".hero-glance .glance-card:nth-of-type(2) strong", appState.locale === "zh" ? "TCP / HTTP Push / MQTT" : "TCP / HTTP Push / MQTT");
   setText(".hero-glance .glance-card:nth-of-type(2) small", appState.locale === "zh"
     ? "内置 TCP 网关继续可用，并新增 HTTP Push 统一接入端点承接 Modbus、MQTT、OPC UA 等桥接数据。"
-    : "The built-in TCP gateway remains available, and HTTP push ingest can accept bridge-forwarded Modbus, MQTT and OPC UA data.");
+    : "The built-in TCP gateway, HTTP ingest and MQTT broker can run together, while Modbus, OPC UA and BACnet still enter through bridge collectors.");
   setText(".panel-overview .section-kicker", appState.locale === "zh" ? "运行态" : "Runtime");
   setText(".panel-overview .section-head h3", appState.locale === "zh" ? "核心指标" : "Overview Metrics");
   const overviewDevicePanel = document.getElementById("overview-device-list")?.closest(".panel");
@@ -506,6 +514,10 @@ function renderStats(metrics) {
     [t("connections_metric"), metrics?.total_connections || 0],
     [t("telemetry_metric"), metrics?.telemetry_received || 0],
     [t("command_ack_metric"), metrics?.command_acks || 0],
+    [t("http_ingest_metric"), metrics?.ingress?.http_ingest_accepted || 0],
+    [t("mqtt_metric"), metrics?.ingress?.mqtt_messages_received || 0],
+    [t("samples_metric"), metrics?.storage?.telemetry_samples || 0],
+    [t("persist_errors_metric"), metrics?.storage?.persist_errors || 0],
   ];
 
   container.innerHTML = cards.map(([name, value]) => `

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -33,6 +34,10 @@ type Session interface {
 	Close() error
 }
 
+type sessionTransport interface {
+	Transport() string
+}
+
 type Service struct {
 	products  store.ProductStore
 	devices   store.DeviceStore
@@ -43,24 +48,42 @@ type Service struct {
 	shadows   store.ShadowStore
 	commands  store.CommandStore
 	alerts    store.AlertStore
+	inspector store.Inspector
 	logger    *slog.Logger
+	startedAt time.Time
 
 	mu         sync.RWMutex
 	states     map[string]deviceState
 	ruleStates map[string]ruleRuntimeState
 
-	registeredDevices   atomic.Int64
-	onlineDevices       atomic.Int64
-	totalConnections    atomic.Int64
-	rejectedConnections atomic.Int64
-	telemetryReceived   atomic.Int64
-	commandsSent        atomic.Int64
-	commandAcks         atomic.Int64
+	registeredDevices        atomic.Int64
+	onlineDevices            atomic.Int64
+	totalConnections         atomic.Int64
+	rejectedConnections      atomic.Int64
+	telemetryReceived        atomic.Int64
+	commandsSent             atomic.Int64
+	commandAcks              atomic.Int64
+	httpRequests             atomic.Int64
+	httpErrors               atomic.Int64
+	httpIngestAccepted       atomic.Int64
+	httpIngestRejected       atomic.Int64
+	tcpTelemetryAccepted     atomic.Int64
+	tcpCommandAcks           atomic.Int64
+	tcpCommandsPublished     atomic.Int64
+	mqttMessagesReceived     atomic.Int64
+	mqttTelemetryAccepted    atomic.Int64
+	mqttCommandAcks          atomic.Int64
+	mqttCommandsPublished    atomic.Int64
+	mqttConnectionsAccepted atomic.Int64
+	mqttConnectionsRejected atomic.Int64
+	bytesIngested            atomic.Int64
+	telemetryValues          atomic.Int64
 }
 
 type deviceState struct {
 	session     Session
 	sessionID   string
+	transport   string
 	connectedAt time.Time
 	lastSeen    time.Time
 }
@@ -86,7 +109,14 @@ func NewService(
 		logger = slog.Default()
 	}
 
-	return &Service{
+	var inspector store.Inspector
+	if candidate, ok := devices.(store.Inspector); ok {
+		inspector = candidate
+	}
+
+	startedAt := time.Now().UTC()
+
+	service := &Service{
 		products:   products,
 		devices:    devices,
 		groups:     groups,
@@ -96,10 +126,18 @@ func NewService(
 		shadows:    shadows,
 		commands:   commands,
 		alerts:     alerts,
+		inspector:  inspector,
 		logger:     logger,
+		startedAt:  startedAt,
 		states:     make(map[string]deviceState),
 		ruleStates: make(map[string]ruleRuntimeState),
 	}
+	if inspector != nil {
+		if stats, err := inspector.StorageStats(context.Background()); err == nil {
+			service.registeredDevices.Store(stats.Devices)
+		}
+	}
+	return service
 }
 
 func (s *Service) CreateProduct(ctx context.Context, name, description string, metadata map[string]string, accessProfile model.ProductAccessProfile, thingModel model.ThingModel) (model.Product, error) {
@@ -695,6 +733,7 @@ func (s *Service) AuthenticateDevice(ctx context.Context, deviceID, token string
 
 func (s *Service) RegisterSession(deviceID string, session Session) {
 	now := time.Now().UTC()
+	transport := sessionTransportName(session)
 
 	var previous Session
 	var shouldIncrement bool
@@ -710,6 +749,7 @@ func (s *Service) RegisterSession(deviceID string, session Session) {
 	s.states[deviceID] = deviceState{
 		session:     session,
 		sessionID:   session.SessionID(),
+		transport:   transport,
 		connectedAt: now,
 		lastSeen:    now,
 	}
@@ -733,6 +773,7 @@ func (s *Service) UnregisterSession(deviceID, sessionID string) {
 	if state.session != nil && state.sessionID == sessionID {
 		state.session = nil
 		state.sessionID = ""
+		state.transport = ""
 		state.lastSeen = now
 		s.states[deviceID] = state
 		shouldDecrement = true
@@ -885,6 +926,7 @@ func (s *Service) SendCommand(ctx context.Context, deviceID, name string, params
 	}
 
 	s.commandsSent.Add(1)
+	s.recordCommandPublished(sessionTransportName(session))
 	s.TouchDevice(deviceID, now)
 	return updated, nil
 }
@@ -935,7 +977,107 @@ func (s *Service) RecordConnectionRejected() {
 	s.rejectedConnections.Add(1)
 }
 
+func (s *Service) RecordHTTPRequest(status int) {
+	s.httpRequests.Add(1)
+	if status >= 400 {
+		s.httpErrors.Add(1)
+	}
+}
+
+func (s *Service) RecordHTTPIngestResult(accepted bool, payloadBytes, valueCount int) {
+	if accepted {
+		s.httpIngestAccepted.Add(1)
+	} else {
+		s.httpIngestRejected.Add(1)
+	}
+	s.recordIngressVolume(payloadBytes, valueCount)
+}
+
+func (s *Service) RecordTCPTelemetryAccepted(payloadBytes, valueCount int) {
+	s.tcpTelemetryAccepted.Add(1)
+	s.recordIngressVolume(payloadBytes, valueCount)
+}
+
+func (s *Service) RecordCommandAckTransport(transport string) {
+	switch strings.ToLower(strings.TrimSpace(transport)) {
+	case "mqtt":
+		s.mqttCommandAcks.Add(1)
+	default:
+		s.tcpCommandAcks.Add(1)
+	}
+}
+
+func (s *Service) RecordMQTTConnectionAccepted() {
+	s.mqttConnectionsAccepted.Add(1)
+}
+
+func (s *Service) RecordMQTTConnectionRejected() {
+	s.mqttConnectionsRejected.Add(1)
+}
+
+func (s *Service) RecordMQTTMessageReceived(payloadBytes, valueCount int, telemetry bool) {
+	s.mqttMessagesReceived.Add(1)
+	if telemetry {
+		s.mqttTelemetryAccepted.Add(1)
+	}
+	s.recordIngressVolume(payloadBytes, valueCount)
+}
+
+func (s *Service) recordIngressVolume(payloadBytes, valueCount int) {
+	if payloadBytes > 0 {
+		s.bytesIngested.Add(int64(payloadBytes))
+	}
+	if valueCount > 0 {
+		s.telemetryValues.Add(int64(valueCount))
+	}
+}
+
+func (s *Service) recordCommandPublished(transport string) {
+	switch strings.ToLower(strings.TrimSpace(transport)) {
+	case "mqtt":
+		s.mqttCommandsPublished.Add(1)
+	default:
+		s.tcpCommandsPublished.Add(1)
+	}
+}
+
+func sessionTransportName(session Session) string {
+	if transportSession, ok := session.(sessionTransport); ok {
+		value := strings.ToLower(strings.TrimSpace(transportSession.Transport()))
+		if value != "" {
+			return value
+		}
+	}
+	return "tcp"
+}
+
 func (s *Service) Stats() model.Stats {
+	storageStats := model.StorageStats{Backend: "memory"}
+	if s.inspector != nil {
+		if stats, err := s.inspector.StorageStats(context.Background()); err == nil {
+			storageStats = stats
+		}
+	}
+
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+
+	var tcpOnlineDevices int64
+	var mqttOnlineDevices int64
+	s.mu.RLock()
+	for _, state := range s.states {
+		if state.session == nil {
+			continue
+		}
+		switch state.transport {
+		case "mqtt":
+			mqttOnlineDevices++
+		default:
+			tcpOnlineDevices++
+		}
+	}
+	s.mu.RUnlock()
+
 	return model.Stats{
 		RegisteredDevices:   s.registeredDevices.Load(),
 		OnlineDevices:       s.onlineDevices.Load(),
@@ -944,6 +1086,38 @@ func (s *Service) Stats() model.Stats {
 		TelemetryReceived:   s.telemetryReceived.Load(),
 		CommandsSent:        s.commandsSent.Load(),
 		CommandAcks:         s.commandAcks.Load(),
+		StartedAt:           s.startedAt,
+		UptimeSeconds:       int64(time.Since(s.startedAt).Seconds()),
+		Runtime: model.RuntimeStats{
+			Goroutines:      runtime.NumGoroutine(),
+			HeapAllocBytes:  memStats.HeapAlloc,
+			HeapInuseBytes:  memStats.HeapInuse,
+			StackInuseBytes: memStats.StackInuse,
+			SysBytes:        memStats.Sys,
+			NumGC:           memStats.NumGC,
+		},
+		Storage:             storageStats,
+		Ingress: model.IngressStats{
+			HTTPRequests:          s.httpRequests.Load(),
+			HTTPErrors:            s.httpErrors.Load(),
+			HTTPIngestAccepted:    s.httpIngestAccepted.Load(),
+			HTTPIngestRejected:    s.httpIngestRejected.Load(),
+			TCPTelemetryAccepted:  s.tcpTelemetryAccepted.Load(),
+			TCPCommandAcks:        s.tcpCommandAcks.Load(),
+			MQTTMessagesReceived:  s.mqttMessagesReceived.Load(),
+			MQTTTelemetryAccepted: s.mqttTelemetryAccepted.Load(),
+			MQTTCommandAcks:       s.mqttCommandAcks.Load(),
+			BytesIngested:         s.bytesIngested.Load(),
+			TelemetryValues:       s.telemetryValues.Load(),
+		},
+		Transport: model.TransportStats{
+			TCPOnlineDevices:        tcpOnlineDevices,
+			MQTTOnlineDevices:       mqttOnlineDevices,
+			TCPCommandsPublished:    s.tcpCommandsPublished.Load(),
+			MQTTCommandsPublished:   s.mqttCommandsPublished.Load(),
+			MQTTConnectionsAccepted: s.mqttConnectionsAccepted.Load(),
+			MQTTConnectionsRejected: s.mqttConnectionsRejected.Load(),
+		},
 	}
 }
 
@@ -1398,11 +1572,13 @@ func normalizeAccessProfile(profile model.ProductAccessProfile) (model.ProductAc
 	profile.Metadata = cloneStringMap(profile.Metadata)
 
 	if profile.Protocol == "" {
-		switch profile.IngestMode {
-		case "http_push":
+		switch {
+		case profile.IngestMode == "http_push":
 			profile.Protocol = "http_json"
-		case "bridge_http":
+		case profile.IngestMode == "bridge_http", profile.IngestMode == "broker_mqtt", profile.Transport == "mqtt":
 			profile.Protocol = "mqtt_json"
+		case profile.Transport == "http":
+			profile.Protocol = "http_json"
 		default:
 			profile.Protocol = "tcp_json"
 		}
@@ -1433,6 +1609,8 @@ func normalizeAccessProfile(profile model.ProductAccessProfile) (model.ProductAc
 			profile.IngestMode = "gateway_tcp"
 		case "http_json", "modbus_tcp", "modbus_rtu":
 			profile.IngestMode = "http_push"
+		case "mqtt_json":
+			profile.IngestMode = "broker_mqtt"
 		default:
 			profile.IngestMode = "bridge_http"
 		}
@@ -1529,6 +1707,8 @@ func normalizeIngestMode(value string) string {
 		return "gateway_tcp"
 	case "http", "http_push":
 		return "http_push"
+	case "mqtt", "mqtt_broker", "broker_mqtt":
+		return "broker_mqtt"
 	case "bridge", "bridge_http", "webhook":
 		return "bridge_http"
 	default:

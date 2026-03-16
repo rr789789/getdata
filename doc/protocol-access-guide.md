@@ -6,8 +6,8 @@
 
 当前平台分成两层：
 
-- 原生入口层：平台当前真正内置的监听入口只有 `TCP Gateway` 和 `HTTP Push`
-- 协议适配层：`MQTT / Modbus / OPC UA / BACnet / LoRaWAN` 通过“边缘采集器 / 协议桥 + HTTP Push”接入
+- 原生入口层：平台当前真正内置的监听入口是 `TCP Gateway`、`HTTP Push` 和 `MQTT Broker`
+- 协议适配层：`Modbus / OPC UA / BACnet / LoRaWAN` 通过“边缘采集器 / 协议桥 + HTTP Push”接入
 
 可以直接这样理解：
 
@@ -15,7 +15,7 @@
 | --- | --- | --- | --- |
 | ESP8266 / MCU 直连 | `tcp_json` | `:18830` | 已内置 |
 | HTTP 能力设备 | `http_json` | `/api/v1/ingest/http/{device_id}` | 已内置 |
-| MQTT 设备 | `mqtt_json -> Broker -> Bridge -> HTTP Push` | `/api/v1/ingest/http/{device_id}` | 通过桥接实现 |
+| MQTT 设备 | `mqtt_json` | `:1883` | 已内置 |
 | Modbus RTU/TCP | `register_map -> Collector -> HTTP Push` | `/api/v1/ingest/http/{device_id}` | 通过桥接实现 |
 | OPC UA | `node_map -> Collector -> HTTP Push` | `/api/v1/ingest/http/{device_id}` | 通过桥接实现 |
 | BACnet | `object_map -> Collector -> HTTP Push` | `/api/v1/ingest/http/{device_id}` | 通过桥接实现 |
@@ -173,32 +173,54 @@ curl -X POST http://127.0.0.1:8080/api/v1/ingest/http/<device_id> \
 
 ## 5. MQTT 接入
 
-### 5.1 当前边界
+### 5.1 当前能力
 
-当前平台还没有内置 MQTT Broker，所以不能直接让平台监听 `1883` 并完成设备收发。
-
-当前可用方案是：
+当前平台已经内置 MQTT Broker，默认监听：
 
 ```text
-MQTT Device -> MQTT Broker -> Rule/Bridge -> HTTP Push -> MVP Platform
+:1883
 ```
+
+设备可以直接连平台，不需要额外 Broker。
 
 ### 5.2 推荐做法
 
-1. 设备发到 Broker 指定主题
-2. Broker 规则引擎、Node-RED、边缘服务或自定义桥接程序订阅这个主题
-3. 桥接程序把 MQTT 消息原样或映射后 POST 到：
+1. 设备使用 `device_id` 作为 MQTT `Username`
+2. 设备使用 `device_token` 作为 MQTT `Password`
+3. 设备向上行主题发布遥测
+4. 平台向下行主题发布命令
+5. 设备向 ACK 主题发布命令回执
+
+### 5.3 推荐 MQTT Topic
+
+默认主题：
 
 ```text
-http://<platform-host>:8080/api/v1/ingest/http/{device_id}
+devices/{device_id}/up
+devices/{device_id}/down
+devices/{device_id}/ack
 ```
 
-### 5.3 推荐 MQTT Payload
+如果产品 `access_profile.topic` 指定了包含 `{device_id}` 的模板，例如：
 
 ```json
 {
-  "device_id":"dev_xxx",
-  "token":"token_xxx",
+  "topic":"mvp/{device_id}/up"
+}
+```
+
+平台会自动推导：
+
+```text
+mvp/{device_id}/up
+mvp/{device_id}/down
+mvp/{device_id}/ack
+```
+
+### 5.4 推荐 MQTT Payload
+
+```json
+{
   "values":{
     "temperature":24.5,
     "humidity":58
@@ -206,29 +228,36 @@ http://<platform-host>:8080/api/v1/ingest/http/{device_id}
 }
 ```
 
-如果桥接程序直接把这段 JSON 转发给 HTTP Push，平台就能识别。
+ACK Payload：
 
-### 5.4 产品建议
+```json
+{
+  "command_id":"cmd_xxx",
+  "status":"ok",
+  "message":"accepted"
+}
+```
+
+### 5.5 产品建议
 
 ```json
 {
   "transport":"mqtt",
   "protocol":"mqtt_json",
-  "ingest_mode":"bridge_http",
+  "ingest_mode":"broker_mqtt",
   "payload_format":"json_values",
-  "topic":"factory/{site}/{device_id}/up"
+  "topic":"mvp/{device_id}/up"
 }
 ```
 
-### 5.5 命令链路说明
+### 5.6 命令链路说明
 
-当前平台的命令下发链路是 TCP 原生实现。MQTT 模式下如果你要双向命令，需要另外做：
+当前平台已经支持：
 
-- Broker 下行主题
-- 平台到 Broker 的桥接
-- 设备监听下行主题并回 ACK
+- 平台 -> MQTT 下行 Topic 的命令发布
+- 设备 -> MQTT ACK Topic 的命令回执
 
-这部分当前文档只给出设备固件侧兼容点，不代表平台已经原生打通 MQTT 命令通道。
+因此 `MQTT` 现在已经是平台原生接入方式之一。
 
 ## 6. Modbus 接入
 

@@ -86,3 +86,9 @@ type AlertStore interface {
 	SaveAlert(ctx context.Context, alert model.AlertEvent) error
 	ListAlerts(ctx context.Context, limit int) ([]model.AlertEvent, error)
 }
+
+type Inspector interface {
+	BackendName() string
+	PersistencePath() string
+	StorageStats(ctx context.Context) (model.StorageStats, error)
+}

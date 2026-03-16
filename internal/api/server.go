@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 	"mvp-platform/internal/config"
 	"mvp-platform/internal/core"
+	"mvp-platform/internal/model"
 	"mvp-platform/internal/simulator"
 	"mvp-platform/internal/store"
 )
@@ -58,7 +60,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/simulators/", s.handleSimulatorRoutes)
 	mux.Handle("/assets/", s.staticHandler())
 	mux.HandleFunc("/", s.handleIndex)
-	return mux
+	return s.instrument(mux)
 }
 
 func (s *Server) Run(ctx context.Context) error {
@@ -101,7 +103,12 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, s.service.Stats())
+	stats := s.service.Stats()
+	if wantsPrometheus(r) {
+		writePrometheusMetrics(w, stats)
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
 }
 
 func (s *Server) handleDevices(w http.ResponseWriter, r *http.Request) {
@@ -386,4 +393,100 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{
 		"error": message,
 	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
+func (r *statusRecorder) Write(payload []byte) (int, error) {
+	if r.status == 0 {
+		r.status = http.StatusOK
+	}
+	return r.ResponseWriter.Write(payload)
+}
+
+func (s *Server) instrument(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recorder := &statusRecorder{ResponseWriter: w}
+		next.ServeHTTP(recorder, r)
+		status := recorder.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		s.service.RecordHTTPRequest(status)
+	})
+}
+
+func wantsPrometheus(r *http.Request) bool {
+	if strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("format")), "prometheus") {
+		return true
+	}
+	return strings.Contains(strings.ToLower(r.Header.Get("Accept")), "text/plain")
+}
+
+func writePrometheusMetrics(w http.ResponseWriter, stats model.Stats) {
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	lines := []string{
+		fmt.Sprintf("mvp_registered_devices %d", stats.RegisteredDevices),
+		fmt.Sprintf("mvp_online_devices %d", stats.OnlineDevices),
+		fmt.Sprintf("mvp_total_connections %d", stats.TotalConnections),
+		fmt.Sprintf("mvp_rejected_connections %d", stats.RejectedConnections),
+		fmt.Sprintf("mvp_telemetry_received_total %d", stats.TelemetryReceived),
+		fmt.Sprintf("mvp_commands_sent_total %d", stats.CommandsSent),
+		fmt.Sprintf("mvp_command_acks_total %d", stats.CommandAcks),
+		fmt.Sprintf("mvp_uptime_seconds %d", stats.UptimeSeconds),
+		fmt.Sprintf("mvp_runtime_goroutines %d", stats.Runtime.Goroutines),
+		fmt.Sprintf("mvp_runtime_heap_alloc_bytes %d", stats.Runtime.HeapAllocBytes),
+		fmt.Sprintf("mvp_runtime_heap_inuse_bytes %d", stats.Runtime.HeapInuseBytes),
+		fmt.Sprintf("mvp_runtime_stack_inuse_bytes %d", stats.Runtime.StackInuseBytes),
+		fmt.Sprintf("mvp_runtime_sys_bytes %d", stats.Runtime.SysBytes),
+		fmt.Sprintf("mvp_runtime_gc_cycles_total %d", stats.Runtime.NumGC),
+		fmt.Sprintf("mvp_http_requests_total %d", stats.Ingress.HTTPRequests),
+		fmt.Sprintf("mvp_http_errors_total %d", stats.Ingress.HTTPErrors),
+		fmt.Sprintf("mvp_http_ingest_accepted_total %d", stats.Ingress.HTTPIngestAccepted),
+		fmt.Sprintf("mvp_http_ingest_rejected_total %d", stats.Ingress.HTTPIngestRejected),
+		fmt.Sprintf("mvp_tcp_telemetry_accepted_total %d", stats.Ingress.TCPTelemetryAccepted),
+		fmt.Sprintf("mvp_tcp_command_acks_total %d", stats.Ingress.TCPCommandAcks),
+		fmt.Sprintf("mvp_mqtt_messages_received_total %d", stats.Ingress.MQTTMessagesReceived),
+		fmt.Sprintf("mvp_mqtt_telemetry_accepted_total %d", stats.Ingress.MQTTTelemetryAccepted),
+		fmt.Sprintf("mvp_mqtt_command_acks_total %d", stats.Ingress.MQTTCommandAcks),
+		fmt.Sprintf("mvp_bytes_ingested_total %d", stats.Ingress.BytesIngested),
+		fmt.Sprintf("mvp_telemetry_values_total %d", stats.Ingress.TelemetryValues),
+		fmt.Sprintf("mvp_storage_products %d", stats.Storage.Products),
+		fmt.Sprintf("mvp_storage_devices %d", stats.Storage.Devices),
+		fmt.Sprintf("mvp_storage_groups %d", stats.Storage.Groups),
+		fmt.Sprintf("mvp_storage_rules %d", stats.Storage.Rules),
+		fmt.Sprintf("mvp_storage_config_profiles %d", stats.Storage.ConfigProfiles),
+		fmt.Sprintf("mvp_storage_shadows %d", stats.Storage.Shadows),
+		fmt.Sprintf("mvp_storage_commands %d", stats.Storage.Commands),
+		fmt.Sprintf("mvp_storage_alerts %d", stats.Storage.Alerts),
+		fmt.Sprintf("mvp_storage_telemetry_series %d", stats.Storage.TelemetrySeries),
+		fmt.Sprintf("mvp_storage_telemetry_samples %d", stats.Storage.TelemetrySamples),
+		fmt.Sprintf("mvp_storage_persist_errors_total %d", stats.Storage.PersistErrors),
+		fmt.Sprintf("mvp_transport_tcp_online_devices %d", stats.Transport.TCPOnlineDevices),
+		fmt.Sprintf("mvp_transport_mqtt_online_devices %d", stats.Transport.MQTTOnlineDevices),
+		fmt.Sprintf("mvp_transport_tcp_commands_published_total %d", stats.Transport.TCPCommandsPublished),
+		fmt.Sprintf("mvp_transport_mqtt_commands_published_total %d", stats.Transport.MQTTCommandsPublished),
+		fmt.Sprintf("mvp_transport_mqtt_connections_accepted_total %d", stats.Transport.MQTTConnectionsAccepted),
+		fmt.Sprintf("mvp_transport_mqtt_connections_rejected_total %d", stats.Transport.MQTTConnectionsRejected),
+	}
+	if stats.Storage.LastPersistedAt != nil {
+		lines = append(lines, fmt.Sprintf("mvp_storage_last_persisted_unix %d", stats.Storage.LastPersistedAt.Unix()))
+	}
+	_, _ = io.WriteString(w, strings.Join(lines, "\n")+"\n")
+}
+
+func approximatePayloadBytes(payload any) int {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return 0
+	}
+	return len(data)
 }

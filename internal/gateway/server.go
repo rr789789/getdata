@@ -156,12 +156,14 @@ func (s *Server) handleConnection(ctx context.Context, connID string, conn net.C
 				_ = session.Send(model.ServerMessage{Type: "error", Error: "telemetry rejected"})
 				continue
 			}
+			s.service.RecordTCPTelemetryAccepted(len(line), len(message.Values))
 		case "ack":
 			if err := s.service.HandleCommandAck(ctx, deviceID, message.CommandID, message.Status, message.Message); err != nil {
 				logger.Warn("ack rejected", "device_id", deviceID, "command_id", message.CommandID, "error", err)
 				_ = session.Send(model.ServerMessage{Type: "error", Error: "ack rejected"})
 				continue
 			}
+			s.service.RecordCommandAckTransport("tcp")
 		default:
 			_ = session.Send(model.ServerMessage{Type: "error", Error: "unknown message type"})
 		}
@@ -231,6 +233,10 @@ func newClientSession(id string, conn net.Conn, queueSize int, writeTimeout time
 
 func (s *clientSession) SessionID() string {
 	return s.id
+}
+
+func (s *clientSession) Transport() string {
+	return "tcp"
 }
 
 func (s *clientSession) Send(message model.ServerMessage) error {
