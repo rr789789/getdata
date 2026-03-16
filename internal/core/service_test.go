@@ -63,7 +63,7 @@ func TestServiceLifecycle(t *testing.T) {
 		t.Fatalf("CreateProduct() error = %v", err)
 	}
 
-	device, err := service.CreateDevice(ctx, "sensor-a", product.ID, map[string]string{"region": "cn"})
+	device, err := service.CreateDevice(ctx, "sensor-a", product.ID, map[string]string{"role": "meter"}, map[string]string{"region": "cn"})
 	if err != nil {
 		t.Fatalf("CreateDevice() error = %v", err)
 	}
@@ -137,6 +137,9 @@ func TestServiceLifecycle(t *testing.T) {
 	if view.Product == nil || view.Product.ID != product.ID {
 		t.Fatalf("device product = %#v, want product id %q", view.Product, product.ID)
 	}
+	if got := view.Device.Tags["role"]; got != "meter" {
+		t.Fatalf("device tag role = %q, want meter", got)
+	}
 
 	shadow, err := service.GetShadow(ctx, device.ID)
 	if err != nil {
@@ -177,7 +180,7 @@ func TestSendCommandOfflineMarksFailed(t *testing.T) {
 	service := newTestService()
 	ctx := context.Background()
 
-	device, err := service.CreateDevice(ctx, "sensor-b", "", nil)
+	device, err := service.CreateDevice(ctx, "sensor-b", "", nil, nil)
 	if err != nil {
 		t.Fatalf("CreateDevice() error = %v", err)
 	}
@@ -206,7 +209,7 @@ func TestGroupRuleAlertFlow(t *testing.T) {
 		t.Fatalf("CreateProduct() error = %v", err)
 	}
 
-	device, err := service.CreateDevice(ctx, "boiler-01", product.ID, nil)
+	device, err := service.CreateDevice(ctx, "boiler-01", product.ID, nil, nil)
 	if err != nil {
 		t.Fatalf("CreateDevice() error = %v", err)
 	}
@@ -270,10 +273,64 @@ func TestGroupRuleAlertFlow(t *testing.T) {
 	if len(rules) != 1 || rules[0].TriggeredCount != 2 {
 		t.Fatalf("unexpected rule views: %#v", rules)
 	}
+
+	updatedAlert, err := service.UpdateAlert(ctx, alerts[0].ID, model.AlertStatusAcknowledged, "operator checked")
+	if err != nil {
+		t.Fatalf("UpdateAlert() error = %v", err)
+	}
+	if updatedAlert.Status != model.AlertStatusAcknowledged || updatedAlert.Note != "operator checked" {
+		t.Fatalf("unexpected updated alert: %#v", updatedAlert)
+	}
+}
+
+func TestConfigProfileFlow(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService()
+	ctx := context.Background()
+
+	product, err := service.CreateProduct(ctx, "config-product", "demo", nil, model.ThingModel{
+		Properties: []model.ThingModelProperty{
+			{Identifier: "temperature", Name: "Temperature", DataType: "float"},
+			{Identifier: "enabled", Name: "Enabled", DataType: "bool"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateProduct() error = %v", err)
+	}
+
+	device, err := service.CreateDevice(ctx, "cfg-device", product.ID, nil, nil)
+	if err != nil {
+		t.Fatalf("CreateDevice() error = %v", err)
+	}
+
+	profile, err := service.CreateConfigProfile(ctx, "night-mode", "config template", product.ID, map[string]any{
+		"temperature": 22.5,
+		"enabled":     true,
+	})
+	if err != nil {
+		t.Fatalf("CreateConfigProfile() error = %v", err)
+	}
+
+	shadow, err := service.ApplyConfigProfile(ctx, profile.ID, device.ID)
+	if err != nil {
+		t.Fatalf("ApplyConfigProfile() error = %v", err)
+	}
+	if got := shadow.Desired["temperature"]; got != 22.5 {
+		t.Fatalf("desired temperature = %#v, want 22.5", got)
+	}
+
+	profiles, err := service.ListConfigProfiles(ctx)
+	if err != nil {
+		t.Fatalf("ListConfigProfiles() error = %v", err)
+	}
+	if len(profiles) != 1 || profiles[0].Profile.AppliedCount != 1 {
+		t.Fatalf("unexpected config profiles: %#v", profiles)
+	}
 }
 
 func newTestService() *core.Service {
 	storage := memory.New(16)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, logger)
+	return core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, storage, logger)
 }

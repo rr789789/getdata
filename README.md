@@ -7,14 +7,17 @@
 - 产品定义
 - 物模型（Thing Model / TSL）
 - 设备注册与 `token` 鉴权
+- 设备标签（Tags）
 - TCP 长连接接入
 - 遥测上报
 - 设备影子
 - 命令下发与回执
 - 静态设备分组
 - 阈值规则与告警事件
+- 告警确认 / 处理 / 关闭
+- 远程配置模板（Config Profiles）
 - 带 UI 的测试设备模拟器
-- 内嵌网页控制台
+- 内嵌网页控制台（SagooIoT 风格侧边栏）
 - GitHub Actions 交叉编译 Windows / Linux 二进制
 
 ## 文档
@@ -81,13 +84,14 @@ go build -o bin\mvp-platform.exe .\cmd\mvp-platform
 
 打开 `http://127.0.0.1:8080/` 后，可以直接完成：
 
-- 创建产品和物模型
-- 注册设备并绑定产品
-- 查看设备在线状态、遥测、命令、影子
-- 创建静态设备分组并把设备加入 / 移出分组
-- 创建按产品 / 分组 / 设备范围生效的阈值规则
-- 查看最近告警事件
-- 创建和控制测试设备模拟器
+- 总览页查看产品、设备、规则、告警、配置模板等核心指标
+- 在 Product Center 创建产品和物模型
+- 在 Device Center 注册设备、编辑设备标签、查看在线状态 / 遥测 / 命令 / 影子
+- 在 Governance 中创建静态设备分组，并把设备加入 / 移出分组
+- 在 Governance 中创建按产品 / 分组 / 设备范围生效的阈值规则
+- 在 Governance 中查看告警，并执行确认 / 关闭
+- 在 Config Center 中创建远程配置模板并下发到选中设备
+- 在 Simulator Lab 中创建和控制测试设备模拟器
 
 ## 典型 API
 
@@ -115,7 +119,20 @@ curl -X POST http://127.0.0.1:8080/api/v1/products \
 ```bash
 curl -X POST http://127.0.0.1:8080/api/v1/devices \
   -H "Content-Type: application/json" \
-  -d '{"name":"device-01","product_id":"<product_id>","metadata":{"site":"lab"}}'
+  -d '{
+    "name":"device-01",
+    "product_id":"<product_id>",
+    "tags":{"site":"lab","floor":"1"},
+    "metadata":{"site":"lab"}
+  }'
+```
+
+更新设备标签：
+
+```bash
+curl -X PUT http://127.0.0.1:8080/api/v1/devices/<device_id>/tags \
+  -H "Content-Type: application/json" \
+  -d '{"tags":{"site":"factory-1","line":"A","role":"meter"}}'
 ```
 
 创建分组：
@@ -159,6 +176,22 @@ curl -X POST http://127.0.0.1:8080/api/v1/rules \
 curl "http://127.0.0.1:8080/api/v1/alerts?limit=20"
 ```
 
+确认告警：
+
+```bash
+curl -X PUT http://127.0.0.1:8080/api/v1/alerts/<alert_id> \
+  -H "Content-Type: application/json" \
+  -d '{"status":"acknowledged","note":"operator checked"}'
+```
+
+关闭告警：
+
+```bash
+curl -X PUT http://127.0.0.1:8080/api/v1/alerts/<alert_id> \
+  -H "Content-Type: application/json" \
+  -d '{"status":"resolved","note":"issue cleared"}'
+```
+
 查询设备影子：
 
 ```bash
@@ -171,6 +204,27 @@ curl http://127.0.0.1:8080/api/v1/devices/<device_id>/shadow
 curl -X PUT http://127.0.0.1:8080/api/v1/devices/<device_id>/shadow \
   -H "Content-Type: application/json" \
   -d '{"desired":{"temperature":26.5}}'
+```
+
+创建配置模板：
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/config-profiles \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name":"night-mode",
+    "description":"night shift baseline",
+    "product_id":"<product_id>",
+    "values":{"temperature":22.5,"humidity":45}
+  }'
+```
+
+应用配置模板到设备：
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/config-profiles/<profile_id>/apply \
+  -H "Content-Type: application/json" \
+  -d '{"device_id":"<device_id>"}'
 ```
 
 下发命令：

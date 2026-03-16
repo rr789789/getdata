@@ -102,7 +102,7 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (model.Simulato
 		deviceName = "simulated-device"
 	}
 
-	device, err := m.service.CreateDevice(ctx, deviceName, req.ProductID, req.Metadata)
+	device, err := m.service.CreateDevice(ctx, deviceName, req.ProductID, nil, req.Metadata)
 	if err != nil {
 		return model.SimulatorView{}, err
 	}

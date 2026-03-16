@@ -50,6 +50,22 @@ func (s *Server) handleAlerts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, alerts)
 }
 
+func (s *Server) handleAlertRoutes(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/alerts/")
+	path = strings.Trim(path, "/")
+	if path == "" {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	if r.Method != http.MethodPut {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	s.handleUpdateAlert(w, r, path)
+}
+
 func (s *Server) handleCreateRule(w http.ResponseWriter, r *http.Request) {
 	request := struct {
 		Name            string              `json:"name"`
@@ -103,4 +119,29 @@ func (s *Server) handleListRules(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, rules)
+}
+
+func (s *Server) handleUpdateAlert(w http.ResponseWriter, r *http.Request, alertID string) {
+	var request struct {
+		Status model.AlertStatus `json:"status"`
+		Note   string            `json:"note"`
+	}
+
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	alert, err := s.service.UpdateAlert(r.Context(), alertID, request.Status, request.Note)
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrAlertNotFound):
+			writeError(w, http.StatusNotFound, err.Error())
+		default:
+			writeError(w, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, alert)
 }

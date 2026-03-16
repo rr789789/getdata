@@ -23,6 +23,8 @@ var (
 	ErrInvalidProduct       = errors.New("invalid product")
 	ErrInvalidGroup         = errors.New("invalid group")
 	ErrInvalidRule          = errors.New("invalid rule")
+	ErrInvalidConfig        = errors.New("invalid config profile")
+	ErrInvalidAlert         = errors.New("invalid alert")
 )
 
 type Session interface {
@@ -36,6 +38,7 @@ type Service struct {
 	devices   store.DeviceStore
 	groups    store.GroupStore
 	rules     store.RuleStore
+	configs   store.ConfigStore
 	telemetry store.TelemetryStore
 	shadows   store.ShadowStore
 	commands  store.CommandStore
@@ -72,6 +75,7 @@ func NewService(
 	devices store.DeviceStore,
 	groups store.GroupStore,
 	rules store.RuleStore,
+	configs store.ConfigStore,
 	telemetry store.TelemetryStore,
 	shadows store.ShadowStore,
 	commands store.CommandStore,
@@ -87,6 +91,7 @@ func NewService(
 		devices:    devices,
 		groups:     groups,
 		rules:      rules,
+		configs:    configs,
 		telemetry:  telemetry,
 		shadows:    shadows,
 		commands:   commands,
@@ -261,7 +266,7 @@ func (s *Service) RemoveDeviceFromGroup(ctx context.Context, groupID, deviceID s
 	return s.buildGroupView(ctx, group)
 }
 
-func (s *Service) CreateDevice(ctx context.Context, name, productID string, metadata map[string]string) (model.Device, error) {
+func (s *Service) CreateDevice(ctx context.Context, name, productID string, tags, metadata map[string]string) (model.Device, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		name = "device"
@@ -284,6 +289,7 @@ func (s *Service) CreateDevice(ctx context.Context, name, productID string, meta
 		ProductID:  productID,
 		ProductKey: product.Key,
 		Token:      util.NewToken(),
+		Tags:       cloneStringMap(tags),
 		Metadata:   cloneStringMap(metadata),
 		CreatedAt:  now,
 	}
@@ -306,6 +312,102 @@ func (s *Service) CreateDevice(ctx context.Context, name, productID string, meta
 
 	s.registeredDevices.Add(1)
 	return device, nil
+}
+
+func (s *Service) UpdateDeviceTags(ctx context.Context, deviceID string, tags map[string]string) (model.Device, error) {
+	device, err := s.devices.GetDevice(ctx, strings.TrimSpace(deviceID))
+	if err != nil {
+		return model.Device{}, err
+	}
+
+	device.Tags = cloneStringMap(tags)
+	if err := s.devices.SaveDevice(ctx, device); err != nil {
+		return model.Device{}, err
+	}
+	return device, nil
+}
+
+func (s *Service) CreateConfigProfile(ctx context.Context, name, description, productID string, values map[string]any) (model.ConfigProfile, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return model.ConfigProfile{}, fmt.Errorf("%w: config profile name is required", ErrInvalidConfig)
+	}
+
+	productID = strings.TrimSpace(productID)
+	product, hasProduct := s.loadProduct(ctx, productID)
+	if productID != "" && !hasProduct {
+		return model.ConfigProfile{}, store.ErrProductNotFound
+	}
+	if hasProduct {
+		if err := validateThingValues(product, values); err != nil {
+			return model.ConfigProfile{}, err
+		}
+	}
+
+	now := time.Now().UTC()
+	profile := model.ConfigProfile{
+		ID:          util.NewID("cfg"),
+		Name:        name,
+		Description: strings.TrimSpace(description),
+		ProductID:   productID,
+		Values:      cloneAnyMap(values),
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if profile.Values == nil {
+		profile.Values = map[string]any{}
+	}
+
+	if err := s.configs.CreateConfigProfile(ctx, profile); err != nil {
+		return model.ConfigProfile{}, err
+	}
+	return profile, nil
+}
+
+func (s *Service) ListConfigProfiles(ctx context.Context) ([]model.ConfigProfileView, error) {
+	profiles, err := s.configs.ListConfigProfiles(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	views := make([]model.ConfigProfileView, 0, len(profiles))
+	for _, profile := range profiles {
+		view, buildErr := s.buildConfigProfileView(ctx, profile)
+		if buildErr != nil {
+			return nil, buildErr
+		}
+		views = append(views, view)
+	}
+	return views, nil
+}
+
+func (s *Service) ApplyConfigProfile(ctx context.Context, profileID, deviceID string) (model.DeviceShadow, error) {
+	profile, err := s.configs.GetConfigProfile(ctx, strings.TrimSpace(profileID))
+	if err != nil {
+		return model.DeviceShadow{}, err
+	}
+
+	device, err := s.devices.GetDevice(ctx, strings.TrimSpace(deviceID))
+	if err != nil {
+		return model.DeviceShadow{}, err
+	}
+	if profile.ProductID != "" && device.ProductID != profile.ProductID {
+		return model.DeviceShadow{}, fmt.Errorf("%w: config profile product scope mismatch", ErrInvalidConfig)
+	}
+
+	shadow, err := s.UpdateDesiredShadow(ctx, device.ID, profile.Values)
+	if err != nil {
+		return model.DeviceShadow{}, err
+	}
+
+	now := time.Now().UTC()
+	profile.AppliedCount++
+	profile.LastAppliedAt = &now
+	profile.UpdatedAt = now
+	if err := s.configs.SaveConfigProfile(ctx, profile); err != nil {
+		return model.DeviceShadow{}, err
+	}
+	return shadow, nil
 }
 
 func (s *Service) GetDevice(ctx context.Context, deviceID string) (model.DeviceView, error) {
@@ -514,6 +616,36 @@ func (s *Service) ListAlerts(ctx context.Context, limit int, productID, groupID,
 		}
 	}
 	return filtered, nil
+}
+
+func (s *Service) UpdateAlert(ctx context.Context, alertID string, status model.AlertStatus, note string) (model.AlertEvent, error) {
+	alert, err := s.alerts.GetAlert(ctx, strings.TrimSpace(alertID))
+	if err != nil {
+		return model.AlertEvent{}, err
+	}
+
+	status = normalizeAlertStatus(status)
+	if status == "" {
+		return model.AlertEvent{}, fmt.Errorf("%w: unsupported alert status", ErrInvalidAlert)
+	}
+
+	now := time.Now().UTC()
+	alert.Status = status
+	alert.Note = strings.TrimSpace(note)
+	switch status {
+	case model.AlertStatusAcknowledged:
+		alert.AckAt = &now
+	case model.AlertStatusResolved:
+		if alert.AckAt == nil {
+			alert.AckAt = &now
+		}
+		alert.ResolvedAt = &now
+	}
+
+	if err := s.alerts.SaveAlert(ctx, alert); err != nil {
+		return model.AlertEvent{}, err
+	}
+	return alert, nil
 }
 
 func (s *Service) AuthenticateDevice(ctx context.Context, deviceID, token string) (model.Device, error) {
@@ -884,6 +1016,22 @@ func (s *Service) buildRuleView(ctx context.Context, rule model.Rule) (model.Rul
 	return view, nil
 }
 
+func (s *Service) buildConfigProfileView(ctx context.Context, profile model.ConfigProfile) (model.ConfigProfileView, error) {
+	view := model.ConfigProfileView{Profile: profile}
+	if profile.ProductID == "" {
+		return view, nil
+	}
+
+	product, err := s.products.GetProduct(ctx, profile.ProductID)
+	if err != nil && !errors.Is(err, store.ErrProductNotFound) {
+		return model.ConfigProfileView{}, err
+	}
+	if err == nil {
+		view.Product = &model.ProductSummary{ID: product.ID, Key: product.Key, Name: product.Name}
+	}
+	return view, nil
+}
+
 func (s *Service) buildDeviceView(ctx context.Context, device model.Device) (model.DeviceView, error) {
 	view := model.DeviceView{Device: device}
 	if device.ProductID != "" {
@@ -1006,6 +1154,7 @@ func (s *Service) evaluateRules(ctx context.Context, device model.Device, teleme
 			Threshold:   rule.Condition.Value,
 			Value:       value,
 			Severity:    rule.Severity,
+			Status:      model.AlertStatusNew,
 			Message:     fmt.Sprintf("%s: %s %s %v, got %v", rule.Name, rule.Condition.Property, rule.Condition.Operator, rule.Condition.Value, value),
 			TriggeredAt: telemetry.Timestamp,
 		}
@@ -1187,6 +1336,19 @@ func normalizeSeverity(value model.AlertSeverity) model.AlertSeverity {
 		return model.AlertSeverityInfo
 	default:
 		return model.AlertSeverityWarning
+	}
+}
+
+func normalizeAlertStatus(value model.AlertStatus) model.AlertStatus {
+	switch strings.ToLower(strings.TrimSpace(string(value))) {
+	case "new":
+		return model.AlertStatusNew
+	case "ack", "acked", "acknowledged":
+		return model.AlertStatusAcknowledged
+	case "resolved", "closed", "done":
+		return model.AlertStatusResolved
+	default:
+		return ""
 	}
 }
 

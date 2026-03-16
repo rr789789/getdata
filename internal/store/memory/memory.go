@@ -16,6 +16,7 @@ type Store struct {
 	devices            map[string]model.Device
 	groups             map[string]model.DeviceGroup
 	rules              map[string]model.Rule
+	configProfiles     map[string]model.ConfigProfile
 	shadows            map[string]model.DeviceShadow
 	telemetryByDevice  map[string][]model.Telemetry
 	commandByID        map[string]model.Command
@@ -37,6 +38,7 @@ func New(telemetryRetention int) *Store {
 		devices:            make(map[string]model.Device),
 		groups:             make(map[string]model.DeviceGroup),
 		rules:              make(map[string]model.Rule),
+		configProfiles:     make(map[string]model.ConfigProfile),
 		shadows:            make(map[string]model.DeviceShadow),
 		telemetryByDevice:  make(map[string][]model.Telemetry),
 		commandByID:        make(map[string]model.Command),
@@ -134,6 +136,18 @@ func (s *Store) ListDevices(_ context.Context) ([]model.Device, error) {
 		return result[i].CreatedAt.After(result[j].CreatedAt)
 	})
 	return result, nil
+}
+
+func (s *Store) SaveDevice(_ context.Context, device model.Device) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.devices[device.ID]; !exists {
+		return store.ErrDeviceNotFound
+	}
+
+	s.devices[device.ID] = cloneDevice(device)
+	return nil
 }
 
 func (s *Store) CreateGroup(_ context.Context, group model.DeviceGroup) error {
@@ -288,6 +302,56 @@ func (s *Store) SaveRule(_ context.Context, rule model.Rule) error {
 	return nil
 }
 
+func (s *Store) CreateConfigProfile(_ context.Context, profile model.ConfigProfile) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.configProfiles[profile.ID]; exists {
+		return store.ErrConfigExists
+	}
+
+	s.configProfiles[profile.ID] = cloneConfigProfile(profile)
+	return nil
+}
+
+func (s *Store) GetConfigProfile(_ context.Context, profileID string) (model.ConfigProfile, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	profile, exists := s.configProfiles[profileID]
+	if !exists {
+		return model.ConfigProfile{}, store.ErrConfigNotFound
+	}
+	return cloneConfigProfile(profile), nil
+}
+
+func (s *Store) ListConfigProfiles(_ context.Context) ([]model.ConfigProfile, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make([]model.ConfigProfile, 0, len(s.configProfiles))
+	for _, profile := range s.configProfiles {
+		result = append(result, cloneConfigProfile(profile))
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].CreatedAt.After(result[j].CreatedAt)
+	})
+	return result, nil
+}
+
+func (s *Store) SaveConfigProfile(_ context.Context, profile model.ConfigProfile) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.configProfiles[profile.ID]; !exists {
+		return store.ErrConfigNotFound
+	}
+
+	s.configProfiles[profile.ID] = cloneConfigProfile(profile)
+	return nil
+}
+
 func (s *Store) AppendTelemetry(_ context.Context, telemetry model.Telemetry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -411,6 +475,31 @@ func (s *Store) AppendAlert(_ context.Context, alert model.AlertEvent) error {
 	return nil
 }
 
+func (s *Store) GetAlert(_ context.Context, alertID string) (model.AlertEvent, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for i := len(s.alerts) - 1; i >= 0; i-- {
+		if s.alerts[i].ID == alertID {
+			return cloneAlert(s.alerts[i]), nil
+		}
+	}
+	return model.AlertEvent{}, store.ErrAlertNotFound
+}
+
+func (s *Store) SaveAlert(_ context.Context, alert model.AlertEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i := range s.alerts {
+		if s.alerts[i].ID == alert.ID {
+			s.alerts[i] = cloneAlert(alert)
+			return nil
+		}
+	}
+	return store.ErrAlertNotFound
+}
+
 func (s *Store) ListAlerts(_ context.Context, limit int) ([]model.AlertEvent, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -439,6 +528,7 @@ func cloneDevice(device model.Device) model.Device {
 		ProductID:  device.ProductID,
 		ProductKey: device.ProductKey,
 		Token:      device.Token,
+		Tags:       cloneStringMap(device.Tags),
 		Metadata:   cloneStringMap(device.Metadata),
 		CreatedAt:  device.CreatedAt,
 	}
@@ -511,6 +601,24 @@ func cloneRule(rule model.Rule) model.Rule {
 	}
 }
 
+func cloneConfigProfile(profile model.ConfigProfile) model.ConfigProfile {
+	result := model.ConfigProfile{
+		ID:           profile.ID,
+		Name:         profile.Name,
+		Description:  profile.Description,
+		ProductID:    profile.ProductID,
+		Values:       cloneAnyMap(profile.Values),
+		AppliedCount: profile.AppliedCount,
+		CreatedAt:    profile.CreatedAt,
+		UpdatedAt:    profile.UpdatedAt,
+	}
+	if profile.LastAppliedAt != nil {
+		value := *profile.LastAppliedAt
+		result.LastAppliedAt = &value
+	}
+	return result
+}
+
 func cloneThingModel(modelValue model.ThingModel) model.ThingModel {
 	properties := make([]model.ThingModelProperty, 0, len(modelValue.Properties))
 	for _, property := range modelValue.Properties {
@@ -574,7 +682,7 @@ func cloneShadow(shadow model.DeviceShadow) model.DeviceShadow {
 }
 
 func cloneAlert(alert model.AlertEvent) model.AlertEvent {
-	return model.AlertEvent{
+	result := model.AlertEvent{
 		ID:          alert.ID,
 		RuleID:      alert.RuleID,
 		RuleName:    alert.RuleName,
@@ -587,9 +695,20 @@ func cloneAlert(alert model.AlertEvent) model.AlertEvent {
 		Threshold:   alert.Threshold,
 		Value:       alert.Value,
 		Severity:    alert.Severity,
+		Status:      alert.Status,
 		Message:     alert.Message,
+		Note:        alert.Note,
 		TriggeredAt: alert.TriggeredAt,
 	}
+	if alert.AckAt != nil {
+		value := *alert.AckAt
+		result.AckAt = &value
+	}
+	if alert.ResolvedAt != nil {
+		value := *alert.ResolvedAt
+		result.ResolvedAt = &value
+	}
+	return result
 }
 
 func cloneStringMap(input map[string]string) map[string]string {

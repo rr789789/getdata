@@ -1,9 +1,22 @@
+const VIEW_TITLES = {
+  overview: "Overview",
+  products: "Product Center",
+  devices: "Device Center",
+  governance: "Governance",
+  config: "Config Center",
+  simulator: "Simulator Lab",
+};
+
 const appState = {
+  currentView: "overview",
+  health: null,
+  metrics: null,
   products: [],
   devices: [],
   groups: [],
   rules: [],
   alerts: [],
+  configProfiles: [],
   simulators: [],
   selectedDeviceId: "",
 };
@@ -61,11 +74,22 @@ function escapeHTML(value) {
 }
 
 function formatTime(value) {
-  return value ? new Date(value).toLocaleString() : "-";
+  return value ? new Date(value).toLocaleString("zh-CN") : "-";
+}
+
+function formatValue(value) {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
 function pretty(value) {
-  return JSON.stringify(value ?? {}, null, 2);
+  try {
+    return JSON.stringify(value ?? {}, null, 2);
+  } catch (error) {
+    return String(value ?? "");
+  }
 }
 
 function isEditingTextField() {
@@ -119,33 +143,132 @@ function buildThingModelTemplate(productView) {
   return template;
 }
 
+function renderKVTags(values, emptyLabel = "No tags") {
+  const entries = Object.entries(values || {});
+  if (entries.length === 0) {
+    return `<span class="subtle">${escapeHTML(emptyLabel)}</span>`;
+  }
+  return entries
+    .map(([key, value]) => `<span class="tag">${escapeHTML(key)}=${escapeHTML(value)}</span>`)
+    .join("");
+}
+
 function renderHealth(health) {
-  const healthy = health.status === "ok";
-  document.getElementById("health-dot").classList.toggle("online", healthy);
-  document.getElementById("health-text").textContent = healthy
-    ? `Running · ${new Date(health.time).toLocaleTimeString()}`
-    : "Runtime unhealthy";
+  const dot = document.getElementById("health-dot");
+  const text = document.getElementById("health-text");
+  if (!dot || !text) {
+    return;
+  }
+
+  const healthy = health?.status === "ok";
+  dot.classList.toggle("online", healthy);
+  text.textContent = healthy ? `Runtime healthy | ${formatTime(health.time)}` : "Runtime unavailable";
 }
 
 function renderStats(metrics) {
+  const container = document.getElementById("stats-grid");
+  if (!container) {
+    return;
+  }
+
   const cards = [
     ["Products", appState.products.length],
-    ["Devices", metrics.registered_devices],
-    ["Online", metrics.online_devices],
+    ["Devices", metrics?.registered_devices || 0],
+    ["Online", metrics?.online_devices || 0],
     ["Groups", appState.groups.length],
     ["Rules", appState.rules.length],
     ["Alerts", appState.alerts.length],
-    ["Connections", metrics.total_connections],
-    ["Telemetry", metrics.telemetry_received],
-    ["Command Ack", metrics.command_acks],
+    ["Configs", appState.configProfiles.length],
+    ["Connections", metrics?.total_connections || 0],
+    ["Telemetry", metrics?.telemetry_received || 0],
+    ["Command Ack", metrics?.command_acks || 0],
   ];
 
-  document.getElementById("stats-grid").innerHTML = cards.map(([name, value]) => `
+  container.innerHTML = cards.map(([name, value]) => `
     <article class="metric-card">
       <span class="metric-label">${name}</span>
-      <strong class="metric-value">${value ?? 0}</strong>
+      <strong class="metric-value">${value}</strong>
     </article>
   `).join("");
+}
+
+function renderOverview() {
+  const deviceContainer = document.getElementById("overview-device-list");
+  const alertContainer = document.getElementById("overview-alert-list");
+  if (!deviceContainer || !alertContainer) {
+    return;
+  }
+
+  const recentDevices = [...appState.devices]
+    .sort((left, right) => new Date(right.device.created_at) - new Date(left.device.created_at))
+    .slice(0, 5);
+  const latestAlerts = [...appState.alerts]
+    .sort((left, right) => new Date(right.triggered_at) - new Date(left.triggered_at))
+    .slice(0, 5);
+
+  if (recentDevices.length === 0) {
+    deviceContainer.className = "stack empty";
+    deviceContainer.textContent = "No devices yet.";
+  } else {
+    deviceContainer.className = "stack";
+    deviceContainer.innerHTML = recentDevices.map((item) => `
+      <article class="detail-card">
+        <div class="line">
+          <div>
+            <strong>${escapeHTML(item.device.name)}</strong>
+            <div class="muted mono">${escapeHTML(item.device.id)}</div>
+          </div>
+          <span class="pill ${item.online ? "online" : "offline"}">${item.online ? "online" : "offline"}</span>
+        </div>
+        <div class="mini-list">
+          ${item.product ? `<span class="tag">${escapeHTML(item.product.name)}</span>` : '<span class="tag">Unbound</span>'}
+          ${(item.groups || []).map((group) => `<span class="tag">${escapeHTML(group.name)}</span>`).join("")}
+        </div>
+        <div class="list-actions">
+          <button class="button ghost" type="button" data-overview-device="${item.device.id}">Inspect Device</button>
+        </div>
+      </article>
+    `).join("");
+
+    deviceContainer.querySelectorAll("[data-overview-device]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        appState.selectedDeviceId = button.dataset.overviewDevice;
+        activateView("devices");
+        renderDevices();
+        renderGroups();
+        renderConfigProfiles();
+        try {
+          await refreshSelectedDevice();
+        } catch (error) {
+          handleGlobalError(error);
+        }
+      });
+    });
+  }
+
+  if (latestAlerts.length === 0) {
+    alertContainer.className = "stack empty";
+    alertContainer.textContent = "No alerts yet.";
+  } else {
+    alertContainer.className = "stack";
+    alertContainer.innerHTML = latestAlerts.map((item) => `
+      <article class="detail-card alert-card">
+        <div class="line">
+          <div>
+            <strong>${escapeHTML(item.rule_name)}</strong>
+            <div class="muted">${escapeHTML(item.device_name)}</div>
+          </div>
+          <span class="severity ${escapeHTML(item.severity)}">${escapeHTML(item.severity)}</span>
+        </div>
+        <div class="mini-list">
+          <span class="tag">${escapeHTML(item.status || "new")}</span>
+          <span class="tag">${escapeHTML(item.property)} ${escapeHTML(item.operator)} ${escapeHTML(formatValue(item.threshold))}</span>
+          <span class="tag">Value ${escapeHTML(formatValue(item.value))}</span>
+        </div>
+        <div class="muted">${formatTime(item.triggered_at)}</div>
+      </article>
+    `).join("");
+  }
 }
 
 function syncSelect(id, options, emptyLabel) {
@@ -153,20 +276,27 @@ function syncSelect(id, options, emptyLabel) {
   if (!select) {
     return;
   }
+
   const currentValue = select.value;
   select.innerHTML = [`<option value="">${escapeHTML(emptyLabel)}</option>`]
     .concat(options.map((item) => `<option value="${item.value}">${escapeHTML(item.label)}</option>`))
     .join("");
+
   if (currentValue && options.some((item) => item.value === currentValue)) {
     select.value = currentValue;
   }
 }
 
 function syncFormOptions() {
-  syncSelect("device-product-id", appState.products.map((item) => ({ value: item.product.id, label: `${item.product.name} · ${item.product.key}` })), "Unbound");
-  syncSelect("sim-product-id", appState.products.map((item) => ({ value: item.product.id, label: `${item.product.name} · ${item.product.key}` })), "Unbound");
-  syncSelect("group-product-id", appState.products.map((item) => ({ value: item.product.id, label: `${item.product.name} · ${item.product.key}` })), "Any product");
-  syncSelect("rule-product-id", appState.products.map((item) => ({ value: item.product.id, label: `${item.product.name} · ${item.product.key}` })), "Auto");
+  const productOptions = appState.products.map((item) => ({
+    value: item.product.id,
+    label: `${item.product.name} | ${item.product.key}`,
+  }));
+  syncSelect("device-product-id", productOptions, "Unbound");
+  syncSelect("sim-product-id", productOptions, "Unbound");
+  syncSelect("group-product-id", productOptions, "Any product");
+  syncSelect("rule-product-id", productOptions, "Auto");
+  syncSelect("config-product-id", productOptions, "Optional");
   syncSelect("rule-group-id", appState.groups.map((item) => ({ value: item.group.id, label: item.group.name })), "Optional");
   syncSelect("rule-device-id", appState.devices.map((item) => ({ value: item.device.id, label: item.device.name })), "Optional");
 }
@@ -177,7 +307,6 @@ function renderProducts() {
   if (appState.products.length === 0) {
     container.className = "stack empty";
     container.textContent = "No products yet.";
-    syncFormOptions();
     return;
   }
 
@@ -196,11 +325,12 @@ function renderProducts() {
         <div class="meta-tile"><span>Online</span><strong>${item.online_count}</strong></div>
         <div class="meta-tile"><span>Properties</span><strong>${(item.product.thing_model.properties || []).length}</strong></div>
         <div class="meta-tile"><span>Services</span><strong>${(item.product.thing_model.services || []).length}</strong></div>
+        <div class="meta-tile"><span>Version</span><strong>${item.product.thing_model.version || 0}</strong></div>
       </div>
+      <div class="tag-list">${renderKVTags(item.product.metadata, "No metadata")}</div>
       <pre>${escapeHTML(pretty(item.product.thing_model))}</pre>
     </article>
   `).join("");
-  syncFormOptions();
 }
 
 function renderDevices() {
@@ -222,6 +352,7 @@ function renderDevices() {
         </div>
         <div class="muted mono">${escapeHTML(item.device.id)}</div>
         <div class="muted">${item.product ? `Product ${escapeHTML(item.product.name)}` : "Unbound"}</div>
+        <div class="mini-list">${renderKVTags(item.device.tags, "No tags")}</div>
         <div class="mini-list">${(item.groups || []).map((group) => `<span class="tag">${escapeHTML(group.name)}</span>`).join("")}</div>
         <div class="muted">Last seen ${formatTime(item.last_seen)}</div>
         <div class="muted mono">Token ${escapeHTML(item.device.token || "")}</div>
@@ -233,7 +364,13 @@ function renderDevices() {
     button.addEventListener("click", async () => {
       appState.selectedDeviceId = button.dataset.deviceId;
       renderDevices();
-      await refreshSelectedDevice();
+      renderGroups();
+      renderConfigProfiles();
+      try {
+        await refreshSelectedDevice();
+      } catch (error) {
+        handleGlobalError(error);
+      }
     });
   });
 }
@@ -244,7 +381,6 @@ function renderGroups() {
   if (appState.groups.length === 0) {
     container.className = "stack empty";
     container.textContent = "No groups yet.";
-    syncFormOptions();
     return;
   }
 
@@ -257,6 +393,7 @@ function renderGroups() {
         <div class="line">
           <div>
             <strong>${escapeHTML(item.group.name)}</strong>
+            <div class="muted mono">${escapeHTML(item.group.id)}</div>
             <div class="muted">${item.product ? `Bound to ${escapeHTML(item.product.name)}` : "Any product"}</div>
           </div>
           <span class="chip">${item.device_count} devices</span>
@@ -265,9 +402,11 @@ function renderGroups() {
           <div class="meta-tile"><span>Online</span><strong>${item.online_count}</strong></div>
           <div class="meta-tile"><span>Description</span><strong>${escapeHTML(item.group.description || "-")}</strong></div>
         </div>
-        <div class="tag-list">${Object.entries(item.group.tags || {}).map(([key, value]) => `<span class="tag">${escapeHTML(key)}=${escapeHTML(value)}</span>`).join("") || '<span class="subtle">No tags</span>'}</div>
+        <div class="tag-list">${renderKVTags(item.group.tags, "No tags")}</div>
         <div class="list-actions">
-          ${selectedDevice ? `<button class="button ghost" type="button" data-group-${member ? "remove" : "add"}="${item.group.id}">${member ? "Remove selected device" : "Add selected device"}</button>` : '<span class="subtle">Select a device to manage membership.</span>'}
+          ${selectedDevice
+            ? `<button class="button ghost" type="button" data-group-${member ? "remove" : "add"}="${item.group.id}">${member ? "Remove selected device" : "Add selected device"}</button>`
+            : '<span class="subtle">Select a device to manage membership.</span>'}
         </div>
       </article>
     `;
@@ -279,7 +418,6 @@ function renderGroups() {
   container.querySelectorAll("[data-group-remove]").forEach((button) => {
     button.addEventListener("click", () => updateGroupMembership(button.dataset.groupRemove, appState.selectedDeviceId, false));
   });
-  syncFormOptions();
 }
 
 function renderRules() {
@@ -288,7 +426,6 @@ function renderRules() {
   if (appState.rules.length === 0) {
     container.className = "stack empty";
     container.textContent = "No rules yet.";
-    syncFormOptions();
     return;
   }
 
@@ -303,7 +440,7 @@ function renderRules() {
         <span class="severity ${escapeHTML(item.rule.severity)}">${escapeHTML(item.rule.severity)}</span>
       </div>
       <div class="detail-meta-grid">
-        <div class="meta-tile"><span>Condition</span><strong class="mono">${escapeHTML(item.rule.condition.property)} ${escapeHTML(item.rule.condition.operator)} ${escapeHTML(item.rule.condition.value)}</strong></div>
+        <div class="meta-tile"><span>Condition</span><strong class="mono">${escapeHTML(item.rule.condition.property)} ${escapeHTML(item.rule.condition.operator)} ${escapeHTML(formatValue(item.rule.condition.value))}</strong></div>
         <div class="meta-tile"><span>Triggered</span><strong>${item.triggered_count}</strong></div>
         <div class="meta-tile"><span>Last Triggered</span><strong>${formatTime(item.last_triggered_at)}</strong></div>
       </div>
@@ -315,7 +452,6 @@ function renderRules() {
       </div>
     </article>
   `).join("");
-  syncFormOptions();
 }
 
 function renderAlerts() {
@@ -338,50 +474,154 @@ function renderAlerts() {
         <span class="severity ${escapeHTML(item.severity)}">${escapeHTML(item.severity)}</span>
       </div>
       <div class="mini-list">
+        <span class="tag">Status ${escapeHTML(item.status || "new")}</span>
         <span class="tag">Device ${escapeHTML(item.device_name)}</span>
-        <span class="tag">${escapeHTML(item.property)} ${escapeHTML(item.operator)} ${escapeHTML(item.threshold)}</span>
-        <span class="tag">Value ${escapeHTML(item.value)}</span>
+        <span class="tag">${escapeHTML(item.property)} ${escapeHTML(item.operator)} ${escapeHTML(formatValue(item.threshold))}</span>
+        <span class="tag">Value ${escapeHTML(formatValue(item.value))}</span>
       </div>
-      <div class="subtle">${formatTime(item.triggered_at)}</div>
+      <div class="detail-meta-grid">
+        <div class="meta-tile"><span>Triggered</span><strong>${formatTime(item.triggered_at)}</strong></div>
+        <div class="meta-tile"><span>Acknowledged</span><strong>${formatTime(item.ack_at)}</strong></div>
+        <div class="meta-tile"><span>Resolved</span><strong>${formatTime(item.resolved_at)}</strong></div>
+      </div>
+      <div class="muted">${escapeHTML(item.note || "No note")}</div>
+      <div class="list-actions">
+        ${item.status !== "acknowledged" && item.status !== "resolved" ? `<button class="button ghost" type="button" data-alert-ack="${item.id}">Acknowledge</button>` : ""}
+        ${item.status !== "resolved" ? `<button class="button primary" type="button" data-alert-resolve="${item.id}">Resolve</button>` : ""}
+      </div>
     </article>
   `).join("");
+
+  container.querySelectorAll("[data-alert-ack]").forEach((button) => {
+    button.addEventListener("click", () => updateAlertStatus(button.dataset.alertAck, "acknowledged"));
+  });
+  container.querySelectorAll("[data-alert-resolve]").forEach((button) => {
+    button.addEventListener("click", () => updateAlertStatus(button.dataset.alertResolve, "resolved"));
+  });
+}
+
+function renderConfigProfiles() {
+  const container = document.getElementById("config-list");
+  document.getElementById("config-count").textContent = `${appState.configProfiles.length}`;
+  if (appState.configProfiles.length === 0) {
+    container.className = "stack empty";
+    container.textContent = "No config profiles yet.";
+    return;
+  }
+
+  const selectedDevice = getDevice(appState.selectedDeviceId);
+  const selectedProductID = selectedDevice?.device?.product_id || "";
+  container.className = "stack";
+  container.innerHTML = appState.configProfiles.map((item) => {
+    const scopedToAnotherProduct = !!item.product && item.product.id !== selectedProductID;
+    const canApply = !!selectedDevice && !scopedToAnotherProduct;
+    return `
+      <article class="detail-card">
+        <div class="line">
+          <div>
+            <strong>${escapeHTML(item.profile.name)}</strong>
+            <div class="muted mono">${escapeHTML(item.profile.id)}</div>
+            <div class="muted">${escapeHTML(item.profile.description || "Reusable desired-shadow profile")}</div>
+          </div>
+          <span class="chip">${item.profile.applied_count || 0} applied</span>
+        </div>
+        <div class="mini-list">
+          ${item.product ? `<span class="tag">Product ${escapeHTML(item.product.name)}</span>` : '<span class="tag">All products</span>'}
+          <span class="tag">Updated ${escapeHTML(formatTime(item.profile.updated_at))}</span>
+        </div>
+        <div class="list-actions">
+          ${canApply ? `<button class="button primary" type="button" data-config-apply="${item.profile.id}">Apply To Selected Device</button>` : ""}
+          ${!selectedDevice ? '<span class="subtle">Select a device to apply.</span>' : ""}
+          ${scopedToAnotherProduct ? '<span class="subtle">Selected device product does not match this profile.</span>' : ""}
+        </div>
+        <pre>${escapeHTML(pretty(item.profile.values || {}))}</pre>
+      </article>
+    `;
+  }).join("");
+
+  container.querySelectorAll("[data-config-apply]").forEach((button) => {
+    button.addEventListener("click", () => applyConfigProfile(button.dataset.configApply, appState.selectedDeviceId));
+  });
 }
 
 async function refreshSelectedDevice() {
   const panel = document.getElementById("device-detail");
+  const selectedName = document.getElementById("selected-device-name");
+  if (!panel || !selectedName) {
+    return;
+  }
+
   if (!appState.selectedDeviceId) {
-    document.getElementById("selected-device-name").textContent = "Unselected";
+    selectedName.textContent = "Unselected";
     panel.className = "stack empty";
-    panel.textContent = "Select a device to inspect shadow, commands and alerts.";
+    panel.textContent = "Select a device to inspect tags, shadow, commands and alerts.";
     return;
   }
 
   const [device, shadow, telemetry, commands, alerts] = await Promise.all([
-    requestJSON(`/api/v1/devices/${appState.selectedDeviceId}`),
-    requestJSON(`/api/v1/devices/${appState.selectedDeviceId}/shadow`),
-    requestJSON(`/api/v1/devices/${appState.selectedDeviceId}/telemetry?limit=20`),
-    requestJSON(`/api/v1/devices/${appState.selectedDeviceId}/commands?limit=20`),
+    requestJSON(`/api/v1/devices/${encodeURIComponent(appState.selectedDeviceId)}`),
+    requestJSON(`/api/v1/devices/${encodeURIComponent(appState.selectedDeviceId)}/shadow`),
+    requestJSON(`/api/v1/devices/${encodeURIComponent(appState.selectedDeviceId)}/telemetry?limit=20`),
+    requestJSON(`/api/v1/devices/${encodeURIComponent(appState.selectedDeviceId)}/commands?limit=20`),
     requestJSON(`/api/v1/alerts?device_id=${encodeURIComponent(appState.selectedDeviceId)}&limit=10`),
   ]);
 
-  document.getElementById("selected-device-name").textContent = device.device.name;
+  selectedName.textContent = device.device.name;
   panel.className = "device-detail-grid";
   panel.innerHTML = `
     <article class="detail-card">
       <div class="line">
-        <strong>${escapeHTML(device.device.name)}</strong>
+        <div>
+          <strong>${escapeHTML(device.device.name)}</strong>
+          <div class="muted mono">${escapeHTML(device.device.id)}</div>
+        </div>
         <span class="pill ${device.online ? "online" : "offline"}">${device.online ? "online" : "offline"}</span>
       </div>
       <div class="mini-list">
-        ${(device.groups || []).map((group) => `<span class="tag">${escapeHTML(group.name)}</span>`).join("") || '<span class="subtle">No groups</span>'}
+        ${device.product ? `<span class="tag">Product ${escapeHTML(device.product.name)}</span>` : '<span class="tag">Unbound</span>'}
+        ${(device.groups || []).map((group) => `<span class="tag">${escapeHTML(group.name)}</span>`).join("")}
       </div>
       <div class="detail-meta-grid">
-        <div class="meta-tile"><span>Product</span><strong>${device.product ? escapeHTML(device.product.name) : "Unbound"}</strong></div>
         <div class="meta-tile"><span>Connected</span><strong>${formatTime(device.connected_at)}</strong></div>
         <div class="meta-tile"><span>Last Seen</span><strong>${formatTime(device.last_seen)}</strong></div>
+        <div class="meta-tile"><span>Token</span><strong class="mono">${escapeHTML(device.device.token || "-")}</strong></div>
       </div>
-      <pre>${escapeHTML(pretty(device.device.metadata))}</pre>
+      <div class="tag-list">${renderKVTags(device.device.tags, "No tags")}</div>
+      <pre>${escapeHTML(pretty(device.device.metadata || {}))}</pre>
     </article>
+
+    <article class="detail-card">
+      <div class="line"><strong>Device Tags</strong></div>
+      <form id="device-tags-form" class="grid-form">
+        <label class="wide">
+          <span>Tags JSON</span>
+          <textarea id="device-tags-editor" rows="5">${escapeHTML(pretty(device.device.tags || {}))}</textarea>
+        </label>
+        <div class="actions wide">
+          <button class="button ghost" type="submit">Update Tags</button>
+          <span id="device-tags-status" class="hint"></span>
+        </div>
+      </form>
+    </article>
+
+    <article class="detail-card">
+      <div class="line"><strong>Remote Config</strong></div>
+      <form id="device-config-form" class="grid-form">
+        <label class="wide">
+          <span>Config Profile</span>
+          <select id="device-config-profile-id">
+            <option value="">Select profile</option>
+            ${appState.configProfiles.map((item) => `<option value="${item.profile.id}">${escapeHTML(item.profile.name)}${item.product ? ` | ${escapeHTML(item.product.name)}` : ""}</option>`).join("")}
+          </select>
+        </label>
+        <div class="actions wide">
+          <button class="button primary" type="submit">Apply Config Profile</button>
+          <span id="device-config-status" class="hint"></span>
+        </div>
+      </form>
+      <pre>${escapeHTML(pretty(shadow.desired || {}))}</pre>
+    </article>
+
     <article class="detail-card">
       <div class="line"><strong>Device Shadow</strong></div>
       <form id="shadow-form" class="grid-form">
@@ -396,27 +636,75 @@ async function refreshSelectedDevice() {
       </form>
       <pre>${escapeHTML(pretty({ reported: shadow.reported || {}, desired: shadow.desired || {}, updated_at: shadow.updated_at }))}</pre>
     </article>
+
     <article class="detail-card">
       <div class="line"><strong>Send Command</strong></div>
       <form id="command-form" class="grid-form">
-        <label><span>Command</span><input id="command-name" type="text" value="reboot"></label>
-        <label class="wide"><span>Params JSON</span><textarea id="command-params" rows="4">{"delay":1}</textarea></label>
+        <label>
+          <span>Command</span>
+          <input id="command-name" type="text" value="reboot">
+        </label>
+        <label class="wide">
+          <span>Params JSON</span>
+          <textarea id="command-params" rows="4">{"delay":1}</textarea>
+        </label>
         <div class="actions wide">
           <button class="button primary" type="submit">Send Command</button>
           <span id="command-status" class="hint"></span>
         </div>
       </form>
     </article>
-    <article class="detail-card"><div class="line"><strong>Recent Telemetry</strong></div><pre>${escapeHTML(pretty(telemetry))}</pre></article>
-    <article class="detail-card"><div class="line"><strong>Recent Commands</strong></div><pre>${escapeHTML(pretty(commands))}</pre></article>
-    <article class="detail-card"><div class="line"><strong>Device Alerts</strong></div><pre>${escapeHTML(pretty(alerts))}</pre></article>
+
+    <article class="detail-card">
+      <div class="line"><strong>Recent Telemetry</strong></div>
+      <pre>${escapeHTML(pretty(telemetry))}</pre>
+    </article>
+
+    <article class="detail-card">
+      <div class="line"><strong>Recent Commands</strong></div>
+      <pre>${escapeHTML(pretty(commands))}</pre>
+    </article>
+
+    <article class="detail-card">
+      <div class="line"><strong>Device Alerts</strong></div>
+      <pre>${escapeHTML(pretty(alerts))}</pre>
+    </article>
   `;
+
+  document.getElementById("device-tags-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      setHint("device-tags-status", "Updating...");
+      await requestJSON(`/api/v1/devices/${encodeURIComponent(appState.selectedDeviceId)}/tags`, {
+        method: "PUT",
+        body: JSON.stringify({ tags: parseJSON(document.getElementById("device-tags-editor").value, {}) }),
+      });
+      setHint("device-tags-status", "Tags updated");
+      await refreshAll();
+    } catch (error) {
+      setHint("device-tags-status", error.message, true);
+    }
+  });
+
+  document.getElementById("device-config-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      const profileID = document.getElementById("device-config-profile-id").value;
+      if (!profileID) {
+        throw new Error("select a config profile first");
+      }
+      setHint("device-config-status", "Applying...");
+      await applyConfigProfile(profileID, appState.selectedDeviceId, "device-config-status");
+    } catch (error) {
+      setHint("device-config-status", error.message, true);
+    }
+  });
 
   document.getElementById("shadow-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
       setHint("shadow-status", "Updating...");
-      await requestJSON(`/api/v1/devices/${appState.selectedDeviceId}/shadow`, {
+      await requestJSON(`/api/v1/devices/${encodeURIComponent(appState.selectedDeviceId)}/shadow`, {
         method: "PUT",
         body: JSON.stringify({ desired: parseJSON(document.getElementById("shadow-desired").value, {}) }),
       });
@@ -431,7 +719,7 @@ async function refreshSelectedDevice() {
     event.preventDefault();
     try {
       setHint("command-status", "Sending...");
-      await requestJSON(`/api/v1/devices/${appState.selectedDeviceId}/commands`, {
+      await requestJSON(`/api/v1/devices/${encodeURIComponent(appState.selectedDeviceId)}/commands`, {
         method: "POST",
         body: JSON.stringify({
           name: document.getElementById("command-name").value.trim(),
@@ -448,6 +736,10 @@ async function refreshSelectedDevice() {
 
 function renderSimulators() {
   const container = document.getElementById("sim-list");
+  if (!container) {
+    return;
+  }
+
   if (appState.simulators.length === 0) {
     container.className = "stack empty";
     container.textContent = "No simulators yet.";
@@ -461,11 +753,12 @@ function renderSimulators() {
         <div>
           <strong>${escapeHTML(sim.device.name)}</strong>
           <div class="muted mono">${escapeHTML(sim.device.id)}</div>
-          <div class="muted">${sim.device.product_key ? `Product ${escapeHTML(sim.device.product_key)}` : "Unbound"}</div>
+          <div class="muted">${sim.device.product_key ? `ProductKey ${escapeHTML(sim.device.product_key)}` : "Unbound"}</div>
         </div>
         <div class="sim-summary">
           <span class="pill ${sim.connected ? "online" : "offline"}">${sim.connected ? "connected" : "disconnected"}</span>
           <span class="pill">ack ${sim.auto_ack ? "on" : "off"}</span>
+          <span class="pill">ping ${sim.auto_ping ? "on" : "off"}</span>
           <span class="pill">telemetry ${sim.auto_telemetry ? `${sim.telemetry_interval_ms}ms` : "manual"}</span>
         </div>
       </div>
@@ -476,30 +769,63 @@ function renderSimulators() {
         <button class="button ghost" type="button" data-remove="${sim.id}">Remove</button>
       </div>
       <div class="sim-grid">
-        <div class="detail-card"><div class="line"><strong>Config</strong></div><pre>${escapeHTML(pretty({ auto_ack: sim.auto_ack, auto_ping: sim.auto_ping, auto_telemetry: sim.auto_telemetry, telemetry_interval_ms: sim.telemetry_interval_ms, default_values: sim.default_values }))}</pre></div>
-        <div class="detail-card"><div class="line"><strong>Status</strong></div><pre>${escapeHTML(pretty({ last_connect_at: sim.last_connect_at, last_disconnect_at: sim.last_disconnect_at, last_ping_at: sim.last_ping_at, last_telemetry_at: sim.last_telemetry_at, last_command_at: sim.last_command_at, last_error: sim.last_error || "" }))}</pre></div>
-        <div class="detail-card"><div class="line"><strong>Logs</strong></div><pre>${escapeHTML((sim.logs || []).map((entry) => `[${formatTime(entry.timestamp)}] ${entry.level.toUpperCase()} ${entry.message}`).join("\n"))}</pre></div>
+        <div class="detail-card">
+          <div class="line"><strong>Config</strong></div>
+          <pre>${escapeHTML(pretty({
+            auto_ack: sim.auto_ack,
+            auto_ping: sim.auto_ping,
+            auto_telemetry: sim.auto_telemetry,
+            telemetry_interval_ms: sim.telemetry_interval_ms,
+            default_values: sim.default_values || {},
+          }))}</pre>
+        </div>
+        <div class="detail-card">
+          <div class="line"><strong>Status</strong></div>
+          <pre>${escapeHTML(pretty({
+            last_connect_at: sim.last_connect_at,
+            last_disconnect_at: sim.last_disconnect_at,
+            last_ping_at: sim.last_ping_at,
+            last_telemetry_at: sim.last_telemetry_at,
+            last_command_at: sim.last_command_at,
+            last_error: sim.last_error || "",
+          }))}</pre>
+        </div>
+        <div class="detail-card">
+          <div class="line"><strong>Logs</strong></div>
+          <pre>${escapeHTML((sim.logs || []).map((entry) => `[${formatTime(entry.timestamp)}] ${entry.level.toUpperCase()} ${entry.message}`).join("\n") || "No logs yet.")}</pre>
+        </div>
       </div>
     </article>
   `).join("");
 
-  document.querySelectorAll("[data-connect]").forEach((button) => button.addEventListener("click", () => doSimulatorAction(button.dataset.connect, "connect")));
-  document.querySelectorAll("[data-disconnect]").forEach((button) => button.addEventListener("click", () => doSimulatorAction(button.dataset.disconnect, "disconnect")));
-  document.querySelectorAll("[data-remove]").forEach((button) => button.addEventListener("click", () => doSimulatorAction(button.dataset.remove, "remove")));
-  document.querySelectorAll("[data-telemetry]").forEach((button) => button.addEventListener("click", () => doSimulatorAction(button.dataset.telemetry, "telemetry")));
+  document.querySelectorAll("[data-connect]").forEach((button) => {
+    button.addEventListener("click", () => doSimulatorAction(button.dataset.connect, "connect"));
+  });
+  document.querySelectorAll("[data-disconnect]").forEach((button) => {
+    button.addEventListener("click", () => doSimulatorAction(button.dataset.disconnect, "disconnect"));
+  });
+  document.querySelectorAll("[data-remove]").forEach((button) => {
+    button.addEventListener("click", () => doSimulatorAction(button.dataset.remove, "remove"));
+  });
+  document.querySelectorAll("[data-telemetry]").forEach((button) => {
+    button.addEventListener("click", () => doSimulatorAction(button.dataset.telemetry, "telemetry"));
+  });
 }
 
 async function doSimulatorAction(id, action) {
   try {
     if (action === "connect") {
-      await requestJSON(`/api/v1/simulators/${id}/connect`, { method: "POST", body: "{}" });
+      await requestJSON(`/api/v1/simulators/${encodeURIComponent(id)}/connect`, { method: "POST", body: "{}" });
     } else if (action === "disconnect") {
-      await requestJSON(`/api/v1/simulators/${id}/disconnect`, { method: "POST", body: "{}" });
+      await requestJSON(`/api/v1/simulators/${encodeURIComponent(id)}/disconnect`, { method: "POST", body: "{}" });
     } else if (action === "remove") {
-      await requestJSON(`/api/v1/simulators/${id}`, { method: "DELETE" });
+      await requestJSON(`/api/v1/simulators/${encodeURIComponent(id)}`, { method: "DELETE" });
     } else {
       const sim = appState.simulators.find((item) => item.id === id);
-      await requestJSON(`/api/v1/simulators/${id}/telemetry`, { method: "POST", body: JSON.stringify({ values: sim ? sim.default_values : {} }) });
+      await requestJSON(`/api/v1/simulators/${encodeURIComponent(id)}/telemetry`, {
+        method: "POST",
+        body: JSON.stringify({ values: sim ? sim.default_values : {} }),
+      });
     }
     await refreshAll();
   } catch (error) {
@@ -511,11 +837,17 @@ async function updateGroupMembership(groupId, deviceId, add) {
   if (!groupId || !deviceId) {
     return;
   }
+
   try {
     if (add) {
-      await requestJSON(`/api/v1/groups/${groupId}/devices`, { method: "POST", body: JSON.stringify({ device_id: deviceId }) });
+      await requestJSON(`/api/v1/groups/${encodeURIComponent(groupId)}/devices`, {
+        method: "POST",
+        body: JSON.stringify({ device_id: deviceId }),
+      });
     } else {
-      await requestJSON(`/api/v1/groups/${groupId}/devices/${deviceId}`, { method: "DELETE" });
+      await requestJSON(`/api/v1/groups/${encodeURIComponent(groupId)}/devices/${encodeURIComponent(deviceId)}`, {
+        method: "DELETE",
+      });
     }
     await refreshAll();
   } catch (error) {
@@ -523,9 +855,57 @@ async function updateGroupMembership(groupId, deviceId, add) {
   }
 }
 
+async function applyConfigProfile(profileId, deviceId, hintId = "config-status") {
+  if (!profileId || !deviceId) {
+    throw new Error("config profile and device are required");
+  }
+
+  setHint(hintId, "Applying...");
+  await requestJSON(`/api/v1/config-profiles/${encodeURIComponent(profileId)}/apply`, {
+    method: "POST",
+    body: JSON.stringify({ device_id: deviceId }),
+  });
+  setHint(hintId, "Config applied");
+  await refreshAll();
+}
+
+async function updateAlertStatus(alertId, status) {
+  const note = window.prompt("Processing note", "");
+  if (note === null) {
+    return;
+  }
+
+  try {
+    await requestJSON(`/api/v1/alerts/${encodeURIComponent(alertId)}`, {
+      method: "PUT",
+      body: JSON.stringify({ status, note }),
+    });
+    await refreshAll();
+  } catch (error) {
+    window.alert(error.message);
+  }
+}
+
+function activateView(viewId) {
+  const target = VIEW_TITLES[viewId] ? viewId : "overview";
+  appState.currentView = target;
+
+  document.querySelectorAll("[data-view-target]").forEach((node) => {
+    node.classList.toggle("active", node.dataset.viewTarget === target);
+  });
+  document.querySelectorAll("[data-view]").forEach((node) => {
+    node.classList.toggle("active", node.dataset.view === target);
+  });
+
+  const title = document.getElementById("view-title");
+  if (title) {
+    title.textContent = VIEW_TITLES[target];
+  }
+}
+
 async function refreshAll() {
   const keepCurrentDetail = isEditingTextField();
-  const [health, metrics, products, devices, groups, rules, alerts, simulators] = await Promise.all([
+  const [health, metrics, products, devices, groups, rules, alerts, configProfiles, simulators] = await Promise.all([
     requestJSON("/healthz"),
     requestJSON("/metrics"),
     requestJSON("/api/v1/products"),
@@ -533,14 +913,18 @@ async function refreshAll() {
     requestJSON("/api/v1/groups"),
     requestJSON("/api/v1/rules"),
     requestJSON("/api/v1/alerts?limit=20"),
+    requestJSON("/api/v1/config-profiles"),
     requestJSON("/api/v1/simulators"),
   ]);
 
+  appState.health = health;
+  appState.metrics = metrics;
   appState.products = products;
   appState.devices = devices;
   appState.groups = groups;
   appState.rules = rules;
   appState.alerts = alerts;
+  appState.configProfiles = configProfiles;
   appState.simulators = simulators;
 
   if (!appState.selectedDeviceId && devices.length > 0) {
@@ -552,15 +936,34 @@ async function refreshAll() {
 
   renderHealth(health);
   renderStats(metrics);
+  syncFormOptions();
+  renderOverview();
   renderProducts();
   renderDevices();
   renderGroups();
   renderRules();
   renderAlerts();
+  renderConfigProfiles();
   renderSimulators();
+
   if (!keepCurrentDetail) {
     await refreshSelectedDevice();
   }
+}
+
+function bindNavigation() {
+  document.querySelectorAll("[data-view-target]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      activateView(button.dataset.viewTarget);
+      if (button.dataset.viewTarget === "devices") {
+        try {
+          await refreshSelectedDevice();
+        } catch (error) {
+          handleGlobalError(error);
+        }
+      }
+    });
+  });
 }
 
 function bindForms() {
@@ -595,6 +998,7 @@ function bindForms() {
         body: JSON.stringify({
           name: document.getElementById("device-name").value.trim(),
           product_id: document.getElementById("device-product-id").value,
+          tags: parseJSON(document.getElementById("device-tags").value, {}),
           metadata: parseJSON(document.getElementById("device-metadata").value, {}),
         }),
       });
@@ -658,6 +1062,28 @@ function bindForms() {
     }
   });
 
+  document.getElementById("config-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      setHint("config-status", "Creating...");
+      await requestJSON("/api/v1/config-profiles", {
+        method: "POST",
+        body: JSON.stringify({
+          name: document.getElementById("config-name").value.trim(),
+          description: document.getElementById("config-description").value.trim(),
+          product_id: document.getElementById("config-product-id").value,
+          values: parseJSON(document.getElementById("config-values").value, {}),
+        }),
+      });
+      document.getElementById("config-name").value = "";
+      document.getElementById("config-description").value = "";
+      setHint("config-status", "Config profile created");
+      await refreshAll();
+    } catch (error) {
+      setHint("config-status", error.message, true);
+    }
+  });
+
   document.getElementById("sim-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
@@ -684,25 +1110,38 @@ function bindForms() {
     }
   });
 
-  document.getElementById("refresh-button").addEventListener("click", refreshAll);
+  document.getElementById("refresh-button").addEventListener("click", () => {
+    refreshAll().catch(handleGlobalError);
+  });
+
   document.getElementById("sim-product-id").addEventListener("change", (event) => {
     const product = getProduct(event.target.value);
     if (product) {
       document.getElementById("sim-values").value = pretty(buildThingModelTemplate(product));
     }
   });
+
+  document.getElementById("config-product-id").addEventListener("change", (event) => {
+    const product = getProduct(event.target.value);
+    if (product && !document.getElementById("config-values").value.trim()) {
+      document.getElementById("config-values").value = pretty(buildThingModelTemplate(product));
+    }
+  });
+
   document.getElementById("rule-group-id").addEventListener("change", (event) => {
     const group = getGroup(event.target.value);
     if (group?.product) {
       document.getElementById("rule-product-id").value = group.product.id;
     }
   });
+
   document.getElementById("rule-device-id").addEventListener("change", (event) => {
     const device = getDevice(event.target.value);
     if (device?.product) {
       document.getElementById("rule-product-id").value = device.product.id;
     }
   });
+
   document.getElementById("rule-product-id").addEventListener("change", (event) => {
     const product = getProduct(event.target.value);
     const firstProperty = product?.product?.thing_model?.properties?.[0];
@@ -712,12 +1151,22 @@ function bindForms() {
   });
 }
 
-async function bootstrap() {
-  bindForms();
-  await refreshAll();
-  window.setInterval(refreshAll, 3000);
+function handleGlobalError(error) {
+  console.error(error);
+  const healthText = document.getElementById("health-text");
+  if (healthText) {
+    healthText.textContent = error.message;
+  }
 }
 
-bootstrap().catch((error) => {
-  document.getElementById("health-text").textContent = error.message;
-});
+async function bootstrap() {
+  bindNavigation();
+  bindForms();
+  activateView(appState.currentView);
+  await refreshAll();
+  window.setInterval(() => {
+    refreshAll().catch(handleGlobalError);
+  }, 4000);
+}
+
+bootstrap().catch(handleGlobalError);

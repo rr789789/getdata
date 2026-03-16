@@ -11,83 +11,126 @@
   <div class="ambient ambient-b"></div>
   <div class="ambient-grid"></div>
 
-  <div class="app-shell">
-    <header class="topbar">
-      <div class="window-controls" aria-hidden="true">
-        <span class="window-dot red"></span>
-        <span class="window-dot amber"></span>
-        <span class="window-dot green"></span>
+  <div class="console-shell">
+    <aside class="console-sidebar">
+      <div class="brand-block">
+        <p class="eyebrow">SagooIoT Inspired</p>
+        <h1>IoT Console</h1>
+        <p class="subtle">Single binary control plane for product, fleet, rules and simulator workflows.</p>
       </div>
-      <div class="topbar-main">
-        <p class="eyebrow">MVP IoT Platform</p>
-        <div class="topbar-title">
-          <h1>Device Cloud Console</h1>
-          <span class="platform-pill">Single Binary Runtime</span>
+
+      <nav class="nav-stack">
+        <button class="nav-item active" type="button" data-view-target="overview">Overview</button>
+        <button class="nav-item" type="button" data-view-target="products">Product Center</button>
+        <button class="nav-item" type="button" data-view-target="devices">Device Center</button>
+        <button class="nav-item" type="button" data-view-target="governance">Governance</button>
+        <button class="nav-item" type="button" data-view-target="config">Config Center</button>
+        <button class="nav-item" type="button" data-view-target="simulator">Simulator Lab</button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="runtime-pill">
+          <span id="health-dot" class="dot"></span>
+          <span id="health-text">Loading runtime status</span>
         </div>
       </div>
-      <div class="runtime-pill">
-        <span id="health-dot" class="dot"></span>
-        <span id="health-text">Loading runtime status</span>
-      </div>
-    </header>
+    </aside>
 
-    <section class="hero-card">
-      <div class="hero-copy">
-        <p class="hero-kicker">Alibaba Cloud inspired control plane</p>
-        <h2>Product, Fleet, Group, Rule, Alert</h2>
-        <p class="copy">在同一个可执行文件里完成产品建模、设备接入、分组编排、规则告警和设备模拟，适合作为物联网平台最小控制台。</p>
-      </div>
-      <div class="hero-glance">
-        <article class="glance-card">
-          <span class="glance-label">Control Plane</span>
-          <strong>HTTP 8080</strong>
-          <small>Products, devices, groups, rules, alerts and simulator console.</small>
-        </article>
-        <article class="glance-card">
-          <span class="glance-label">Gateway</span>
-          <strong>TCP 18830</strong>
-          <small>Real device protocol path for auth, ping, telemetry and command ack.</small>
-        </article>
-      </div>
-    </section>
-
-    <main class="layout">
-      <section class="panel span-12 panel-overview">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Runtime</p>
-            <h3>Overview</h3>
+    <div class="console-main">
+      <header class="console-topbar">
+        <div>
+          <p class="eyebrow">Device Cloud Platform</p>
+          <div class="topbar-title">
+            <h2 id="view-title">Overview</h2>
+            <span class="platform-pill">HTTP 8080 / TCP 18830</span>
           </div>
+        </div>
+        <div class="topbar-actions">
           <button id="refresh-button" class="button ghost" type="button">Refresh</button>
         </div>
-        <div id="stats-grid" class="stats-grid"></div>
-      </section>
+      </header>
 
-      <section class="panel span-12">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Product</p>
-            <h3>Product And Thing Model</h3>
-          </div>
-          <span id="product-count" class="chip">0</span>
-        </div>
-        <div class="product-workbench">
-          <form id="product-form" class="grid-form">
-            <label>
-              <span>Product Name</span>
-              <input id="product-name" type="text" placeholder="thermostat-product">
-            </label>
-            <label>
-              <span>Description</span>
-              <input id="product-description" type="text" placeholder="Smart thermostat product">
-            </label>
-            <label class="wide">
-              <span>Metadata JSON</span>
-              <textarea id="product-metadata" rows="3">{"category":"demo","node_type":"directDevice"}</textarea>
-            </label>
-            <label class="wide">
-              <span>Thing Model JSON</span>
-              <textarea id="product-thing-model" rows="8">{
+      <main class="view-stack">
+        <section class="view-section active" data-view="overview">
+          <section class="hero-card">
+            <div class="hero-copy">
+              <p class="hero-kicker">Enterprise operation console</p>
+              <h3>Product modeling, fleet governance and simulator testing in one place</h3>
+              <p class="copy">This console follows the control-plane style of SagooIoT: sidebar navigation, overview dashboard, fleet governance, rule and alert handling, and reusable configuration profiles.</p>
+            </div>
+            <div class="hero-glance">
+              <article class="glance-card">
+                <span class="glance-label">Control Plane</span>
+                <strong>Product / Device / Rule</strong>
+                <small>Manage thing models, fleet groups, config profiles and alert lifecycle.</small>
+              </article>
+              <article class="glance-card">
+                <span class="glance-label">Gateway Path</span>
+                <strong>Auth / Ping / Telemetry</strong>
+                <small>Simulators still use the real TCP gateway path instead of fake UI-only mock traffic.</small>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel panel-overview">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">Runtime</p>
+                <h3>Overview Metrics</h3>
+              </div>
+            </div>
+            <div id="stats-grid" class="stats-grid"></div>
+          </section>
+
+          <section class="overview-grid">
+            <section class="panel">
+              <div class="section-head">
+                <div>
+                  <p class="section-kicker">Fleet</p>
+                  <h3>Recent Devices</h3>
+                </div>
+              </div>
+              <div id="overview-device-list" class="stack empty">No devices yet.</div>
+            </section>
+
+            <section class="panel">
+              <div class="section-head">
+                <div>
+                  <p class="section-kicker">Alert</p>
+                  <h3>Latest Alerts</h3>
+                </div>
+              </div>
+              <div id="overview-alert-list" class="stack empty">No alerts yet.</div>
+            </section>
+          </section>
+        </section>
+
+        <section class="view-section" data-view="products">
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">Product</p>
+                <h3>Product And Thing Model</h3>
+              </div>
+              <span id="product-count" class="chip">0</span>
+            </div>
+            <div class="product-workbench">
+              <form id="product-form" class="grid-form">
+                <label>
+                  <span>Product Name</span>
+                  <input id="product-name" type="text" placeholder="thermostat-product">
+                </label>
+                <label>
+                  <span>Description</span>
+                  <input id="product-description" type="text" placeholder="Smart thermostat product">
+                </label>
+                <label class="wide">
+                  <span>Metadata JSON</span>
+                  <textarea id="product-metadata" rows="3">{"category":"demo","node_type":"directDevice"}</textarea>
+                </label>
+                <label class="wide">
+                  <span>Thing Model JSON</span>
+                  <textarea id="product-thing-model" rows="8">{
   "properties": [
     {"identifier":"temperature","name":"Temperature","data_type":"float","access_mode":"rw"},
     {"identifier":"humidity","name":"Humidity","data_type":"float","access_mode":"r"}
@@ -99,234 +142,289 @@
     {"identifier":"alarm","name":"Alarm"}
   ]
 }</textarea>
-            </label>
-            <div class="actions wide">
-              <button class="button primary" type="submit">Create Product</button>
-              <span id="product-status" class="hint"></span>
+                </label>
+                <div class="actions wide">
+                  <button class="button primary" type="submit">Create Product</button>
+                  <span id="product-status" class="hint"></span>
+                </div>
+              </form>
+              <div id="product-list" class="stack empty">No products yet.</div>
             </div>
-          </form>
-          <div id="product-list" class="stack empty">No products yet.</div>
-        </div>
-      </section>
+          </section>
+        </section>
 
-      <section class="panel span-4">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Provision</p>
-            <h3>Create Device</h3>
-          </div>
-        </div>
-        <form id="device-form" class="grid-form">
-          <label>
-            <span>Device Name</span>
-            <input id="device-name" type="text" placeholder="edge-sensor-01">
-          </label>
-          <label>
-            <span>Product</span>
-            <select id="device-product-id">
-              <option value="">Unbound</option>
-            </select>
-          </label>
-          <label class="wide">
-            <span>Metadata JSON</span>
-            <textarea id="device-metadata" rows="4">{"site":"lab","model":"demo-v1"}</textarea>
-          </label>
-          <div class="actions wide">
-            <button class="button primary" type="submit">Create Device</button>
-            <span id="device-status" class="hint"></span>
-          </div>
-        </form>
-      </section>
+        <section class="view-section" data-view="devices">
+          <section class="overview-grid">
+            <section class="panel">
+              <div class="section-head">
+                <div>
+                  <p class="section-kicker">Provision</p>
+                  <h3>Create Device</h3>
+                </div>
+              </div>
+              <form id="device-form" class="grid-form">
+                <label>
+                  <span>Device Name</span>
+                  <input id="device-name" type="text" placeholder="edge-sensor-01">
+                </label>
+                <label>
+                  <span>Product</span>
+                  <select id="device-product-id">
+                    <option value="">Unbound</option>
+                  </select>
+                </label>
+                <label class="wide">
+                  <span>Tags JSON</span>
+                  <textarea id="device-tags" rows="3">{"site":"lab","floor":"1"}</textarea>
+                </label>
+                <label class="wide">
+                  <span>Metadata JSON</span>
+                  <textarea id="device-metadata" rows="4">{"site":"lab","model":"demo-v1"}</textarea>
+                </label>
+                <div class="actions wide">
+                  <button class="button primary" type="submit">Create Device</button>
+                  <span id="device-status" class="hint"></span>
+                </div>
+              </form>
+            </section>
 
-      <section class="panel span-4">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Fleet</p>
-            <h3>Device List</h3>
-          </div>
-          <span id="device-count" class="chip">0</span>
-        </div>
-        <div id="device-list" class="stack empty">No devices yet.</div>
-      </section>
+            <section class="panel">
+              <div class="section-head">
+                <div>
+                  <p class="section-kicker">Fleet</p>
+                  <h3>Device List</h3>
+                </div>
+                <span id="device-count" class="chip">0</span>
+              </div>
+              <div id="device-list" class="stack empty">No devices yet.</div>
+            </section>
+          </section>
 
-      <section class="panel span-4">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Detail</p>
-            <h3>Selected Device</h3>
-          </div>
-          <span id="selected-device-name" class="chip">Unselected</span>
-        </div>
-        <div id="device-detail" class="stack empty">Select a device to inspect shadow, commands and alerts.</div>
-      </section>
-
-      <section class="panel span-6">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Group</p>
-            <h3>Static Device Groups</h3>
-          </div>
-          <span id="group-count" class="chip">0</span>
-        </div>
-        <div class="group-workbench">
-          <form id="group-form" class="grid-form">
-            <label>
-              <span>Group Name</span>
-              <input id="group-name" type="text" placeholder="line-a">
-            </label>
-            <label>
-              <span>Bound Product</span>
-              <select id="group-product-id">
-                <option value="">Any product</option>
-              </select>
-            </label>
-            <label class="wide">
-              <span>Description</span>
-              <input id="group-description" type="text" placeholder="Assembly line A">
-            </label>
-            <label class="wide">
-              <span>Tags JSON</span>
-              <textarea id="group-tags" rows="3">{"site":"factory-1","line":"A"}</textarea>
-            </label>
-            <div class="actions wide">
-              <button class="button primary" type="submit">Create Group</button>
-              <span id="group-status" class="hint"></span>
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">Detail</p>
+                <h3>Selected Device</h3>
+              </div>
+              <span id="selected-device-name" class="chip">Unselected</span>
             </div>
-          </form>
-          <div id="group-list" class="stack empty">No groups yet.</div>
-        </div>
-      </section>
+            <div id="device-detail" class="stack empty">Select a device to inspect tags, shadow, commands and alerts.</div>
+          </section>
+        </section>
 
-      <section class="panel span-6">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Rule</p>
-            <h3>Threshold Rules</h3>
-          </div>
-          <span id="rule-count" class="chip">0</span>
-        </div>
-        <div class="rule-workbench">
-          <form id="rule-form" class="grid-form">
-            <label>
-              <span>Rule Name</span>
-              <input id="rule-name" type="text" placeholder="temperature-high">
-            </label>
-            <label>
-              <span>Severity</span>
-              <select id="rule-severity">
-                <option value="warning">warning</option>
-                <option value="critical">critical</option>
-                <option value="info">info</option>
-              </select>
-            </label>
-            <label>
-              <span>Product Scope</span>
-              <select id="rule-product-id">
-                <option value="">Auto</option>
-              </select>
-            </label>
-            <label>
-              <span>Group Scope</span>
-              <select id="rule-group-id">
-                <option value="">Optional</option>
-              </select>
-            </label>
-            <label>
-              <span>Device Scope</span>
-              <select id="rule-device-id">
-                <option value="">Optional</option>
-              </select>
-            </label>
-            <label>
-              <span>Cooldown Seconds</span>
-              <input id="rule-cooldown" type="number" min="0" step="1" value="60">
-            </label>
-            <label>
-              <span>Property</span>
-              <input id="rule-property" type="text" placeholder="temperature">
-            </label>
-            <label>
-              <span>Operator</span>
-              <select id="rule-operator">
-                <option value="gt">&gt;</option>
-                <option value="gte">&gt;=</option>
-                <option value="lt">&lt;</option>
-                <option value="lte">&lt;=</option>
-                <option value="eq">=</option>
-                <option value="neq">!=</option>
-              </select>
-            </label>
-            <label>
-              <span>Threshold</span>
-              <input id="rule-threshold" type="text" placeholder="30">
-            </label>
-            <label class="wide">
-              <span>Description</span>
-              <input id="rule-description" type="text" placeholder="Alert when temperature is higher than 30">
-            </label>
-            <div class="actions wide">
-              <button class="button primary" type="submit">Create Rule</button>
-              <span id="rule-status" class="hint"></span>
+        <section class="view-section" data-view="governance">
+          <section class="overview-grid">
+            <section class="panel">
+              <div class="section-head">
+                <div>
+                  <p class="section-kicker">Group</p>
+                  <h3>Static Device Groups</h3>
+                </div>
+                <span id="group-count" class="chip">0</span>
+              </div>
+              <div class="group-workbench">
+                <form id="group-form" class="grid-form">
+                  <label>
+                    <span>Group Name</span>
+                    <input id="group-name" type="text" placeholder="line-a">
+                  </label>
+                  <label>
+                    <span>Bound Product</span>
+                    <select id="group-product-id">
+                      <option value="">Any product</option>
+                    </select>
+                  </label>
+                  <label class="wide">
+                    <span>Description</span>
+                    <input id="group-description" type="text" placeholder="Assembly line A">
+                  </label>
+                  <label class="wide">
+                    <span>Tags JSON</span>
+                    <textarea id="group-tags" rows="3">{"site":"factory-1","line":"A"}</textarea>
+                  </label>
+                  <div class="actions wide">
+                    <button class="button primary" type="submit">Create Group</button>
+                    <span id="group-status" class="hint"></span>
+                  </div>
+                </form>
+                <div id="group-list" class="stack empty">No groups yet.</div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="section-head">
+                <div>
+                  <p class="section-kicker">Rule</p>
+                  <h3>Threshold Rules</h3>
+                </div>
+                <span id="rule-count" class="chip">0</span>
+              </div>
+              <div class="rule-workbench">
+                <form id="rule-form" class="grid-form">
+                  <label>
+                    <span>Rule Name</span>
+                    <input id="rule-name" type="text" placeholder="temperature-high">
+                  </label>
+                  <label>
+                    <span>Severity</span>
+                    <select id="rule-severity">
+                      <option value="warning">warning</option>
+                      <option value="critical">critical</option>
+                      <option value="info">info</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Product Scope</span>
+                    <select id="rule-product-id">
+                      <option value="">Auto</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Group Scope</span>
+                    <select id="rule-group-id">
+                      <option value="">Optional</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Device Scope</span>
+                    <select id="rule-device-id">
+                      <option value="">Optional</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Cooldown Seconds</span>
+                    <input id="rule-cooldown" type="number" min="0" step="1" value="60">
+                  </label>
+                  <label>
+                    <span>Property</span>
+                    <input id="rule-property" type="text" placeholder="temperature">
+                  </label>
+                  <label>
+                    <span>Operator</span>
+                    <select id="rule-operator">
+                      <option value="gt">&gt;</option>
+                      <option value="gte">&gt;=</option>
+                      <option value="lt">&lt;</option>
+                      <option value="lte">&lt;=</option>
+                      <option value="eq">=</option>
+                      <option value="neq">!=</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Threshold</span>
+                    <input id="rule-threshold" type="text" placeholder="30">
+                  </label>
+                  <label class="wide">
+                    <span>Description</span>
+                    <input id="rule-description" type="text" placeholder="Alert when temperature is higher than 30">
+                  </label>
+                  <div class="actions wide">
+                    <button class="button primary" type="submit">Create Rule</button>
+                    <span id="rule-status" class="hint"></span>
+                  </div>
+                </form>
+                <div id="rule-list" class="stack empty">No rules yet.</div>
+              </div>
+            </section>
+          </section>
+
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">Alert</p>
+                <h3>Alert Governance</h3>
+              </div>
+              <span id="alert-count" class="chip">0</span>
             </div>
-          </form>
-          <div id="rule-list" class="stack empty">No rules yet.</div>
-        </div>
-      </section>
+            <div id="alert-list" class="stack empty">No alerts yet.</div>
+          </section>
+        </section>
 
-      <section class="panel span-12">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Alert</p>
-            <h3>Recent Alert Events</h3>
-          </div>
-          <span id="alert-count" class="chip">0</span>
-        </div>
-        <div id="alert-list" class="stack empty">No alerts yet.</div>
-      </section>
+        <section class="view-section" data-view="config">
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">Config</p>
+                <h3>Remote Config Profiles</h3>
+              </div>
+              <span id="config-count" class="chip">0</span>
+            </div>
+            <div class="product-workbench">
+              <form id="config-form" class="grid-form">
+                <label>
+                  <span>Profile Name</span>
+                  <input id="config-name" type="text" placeholder="night-mode">
+                </label>
+                <label>
+                  <span>Product</span>
+                  <select id="config-product-id">
+                    <option value="">Optional</option>
+                  </select>
+                </label>
+                <label class="wide">
+                  <span>Description</span>
+                  <input id="config-description" type="text" placeholder="Reusable desired-shadow template">
+                </label>
+                <label class="wide">
+                  <span>Values JSON</span>
+                  <textarea id="config-values" rows="7">{"temperature":22.5,"humidity":45}</textarea>
+                </label>
+                <div class="actions wide">
+                  <button class="button primary" type="submit">Create Config Profile</button>
+                  <span id="config-status" class="hint"></span>
+                </div>
+              </form>
+              <div id="config-list" class="stack empty">No config profiles yet.</div>
+            </div>
+          </section>
+        </section>
 
-      <section class="panel span-12">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Simulator</p>
-            <h3>Device Simulator</h3>
-          </div>
-          <span class="chip">Real TCP gateway path</span>
-        </div>
-        <form id="sim-form" class="grid-form">
-          <label>
-            <span>Simulator Device Name</span>
-            <input id="sim-name" type="text" placeholder="virtual-meter-01">
-          </label>
-          <label>
-            <span>Telemetry Interval ms</span>
-            <input id="sim-interval" type="number" min="1000" step="1000" value="5000">
-          </label>
-          <label>
-            <span>Product</span>
-            <select id="sim-product-id">
-              <option value="">Unbound</option>
-            </select>
-          </label>
-          <label class="toggle"><input id="sim-auto-connect" type="checkbox" checked><span>Auto connect</span></label>
-          <label class="toggle"><input id="sim-auto-ack" type="checkbox" checked><span>Auto ack</span></label>
-          <label class="toggle"><input id="sim-auto-ping" type="checkbox" checked><span>Auto ping</span></label>
-          <label class="toggle"><input id="sim-auto-telemetry" type="checkbox" checked><span>Auto telemetry</span></label>
-          <label class="wide">
-            <span>Default Telemetry JSON</span>
-            <textarea id="sim-values" rows="4">{"temperature":24.2,"humidity":58,"voltage":3.28}</textarea>
-          </label>
-          <label class="wide">
-            <span>Metadata JSON</span>
-            <textarea id="sim-metadata" rows="3">{"site":"virtual-lab","model":"simulator"}</textarea>
-          </label>
-          <div class="actions wide">
-            <button class="button accent" type="submit">Create Simulator</button>
-            <span id="sim-status" class="hint"></span>
-          </div>
-        </form>
-        <div id="sim-list" class="stack empty">No simulators yet.</div>
-      </section>
-    </main>
+        <section class="view-section" data-view="simulator">
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">Simulator</p>
+                <h3>Device Simulator</h3>
+              </div>
+              <span class="chip">Real TCP gateway path</span>
+            </div>
+            <form id="sim-form" class="grid-form">
+              <label>
+                <span>Simulator Device Name</span>
+                <input id="sim-name" type="text" placeholder="virtual-meter-01">
+              </label>
+              <label>
+                <span>Telemetry Interval ms</span>
+                <input id="sim-interval" type="number" min="1000" step="1000" value="5000">
+              </label>
+              <label>
+                <span>Product</span>
+                <select id="sim-product-id">
+                  <option value="">Unbound</option>
+                </select>
+              </label>
+              <label class="toggle"><input id="sim-auto-connect" type="checkbox" checked><span>Auto connect</span></label>
+              <label class="toggle"><input id="sim-auto-ack" type="checkbox" checked><span>Auto ack</span></label>
+              <label class="toggle"><input id="sim-auto-ping" type="checkbox" checked><span>Auto ping</span></label>
+              <label class="toggle"><input id="sim-auto-telemetry" type="checkbox" checked><span>Auto telemetry</span></label>
+              <label class="wide">
+                <span>Default Telemetry JSON</span>
+                <textarea id="sim-values" rows="4">{"temperature":24.2,"humidity":58,"voltage":3.28}</textarea>
+              </label>
+              <label class="wide">
+                <span>Metadata JSON</span>
+                <textarea id="sim-metadata" rows="3">{"site":"virtual-lab","model":"simulator"}</textarea>
+              </label>
+              <div class="actions wide">
+                <button class="button accent" type="submit">Create Simulator</button>
+                <span id="sim-status" class="hint"></span>
+              </div>
+            </form>
+            <div id="sim-list" class="stack empty">No simulators yet.</div>
+          </section>
+        </section>
+      </main>
+    </div>
   </div>
 
   <script src="/assets/app.js" defer></script>

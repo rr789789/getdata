@@ -8,6 +8,7 @@ type Device struct {
 	ProductID  string            `json:"product_id,omitempty"`
 	ProductKey string            `json:"product_key,omitempty"`
 	Token      string            `json:"token,omitempty"`
+	Tags       map[string]string `json:"tags,omitempty"`
 	Metadata   map[string]string `json:"metadata,omitempty"`
 	CreatedAt  time.Time         `json:"created_at"`
 }
@@ -147,6 +148,23 @@ type DeviceView struct {
 	LastSeen    *time.Time      `json:"last_seen,omitempty"`
 }
 
+type ConfigProfile struct {
+	ID            string         `json:"id"`
+	Name          string         `json:"name"`
+	Description   string         `json:"description,omitempty"`
+	ProductID     string         `json:"product_id,omitempty"`
+	Values        map[string]any `json:"values"`
+	AppliedCount  int64          `json:"applied_count"`
+	LastAppliedAt *time.Time     `json:"last_applied_at,omitempty"`
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
+}
+
+type ConfigProfileView struct {
+	Profile ConfigProfile  `json:"profile"`
+	Product *ProductSummary `json:"product,omitempty"`
+}
+
 type RuleCondition struct {
 	Property string `json:"property"`
 	Operator string `json:"operator"`
@@ -159,6 +177,14 @@ const (
 	AlertSeverityInfo     AlertSeverity = "info"
 	AlertSeverityWarning  AlertSeverity = "warning"
 	AlertSeverityCritical AlertSeverity = "critical"
+)
+
+type AlertStatus string
+
+const (
+	AlertStatusNew          AlertStatus = "new"
+	AlertStatusAcknowledged AlertStatus = "acknowledged"
+	AlertStatusResolved     AlertStatus = "resolved"
 )
 
 type Rule struct {
@@ -198,7 +224,11 @@ type AlertEvent struct {
 	Threshold   any           `json:"threshold"`
 	Value       any           `json:"value"`
 	Severity    AlertSeverity `json:"severity"`
+	Status      AlertStatus   `json:"status"`
 	Message     string        `json:"message"`
+	Note        string        `json:"note,omitempty"`
+	AckAt       *time.Time    `json:"ack_at,omitempty"`
+	ResolvedAt  *time.Time    `json:"resolved_at,omitempty"`
 	TriggeredAt time.Time     `json:"triggered_at"`
 }
 

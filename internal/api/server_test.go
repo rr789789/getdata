@@ -2,12 +2,14 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"mvp-platform/internal/api"
 	"mvp-platform/internal/config"
@@ -300,6 +302,126 @@ func TestGroupAndRuleAPIFlow(t *testing.T) {
 	}
 }
 
+func TestConfigProfileAndAlertAPIFlow(t *testing.T) {
+	t.Parallel()
+
+	server, service := newTestServerWithService()
+	httpServer := httptest.NewServer(server.Handler())
+	defer httpServer.Close()
+
+	productResp, err := http.Post(httpServer.URL+"/api/v1/products", "application/json", bytes.NewReader([]byte(`{
+		"name":"config-product",
+		"thing_model":{"properties":[
+			{"identifier":"temperature","name":"Temperature","data_type":"float"},
+			{"identifier":"enabled","name":"Enabled","data_type":"bool"}
+		]}
+	}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/products error = %v", err)
+	}
+	defer productResp.Body.Close()
+
+	var product model.Product
+	if err := json.NewDecoder(productResp.Body).Decode(&product); err != nil {
+		t.Fatalf("decode product error = %v", err)
+	}
+
+	deviceResp, err := http.Post(httpServer.URL+"/api/v1/devices", "application/json", bytes.NewReader([]byte(`{"name":"cfg-01","product_id":"`+product.ID+`"}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/devices error = %v", err)
+	}
+	defer deviceResp.Body.Close()
+
+	var device model.Device
+	if err := json.NewDecoder(deviceResp.Body).Decode(&device); err != nil {
+		t.Fatalf("decode device error = %v", err)
+	}
+
+	tagReq, err := http.NewRequest(http.MethodPut, httpServer.URL+"/api/v1/devices/"+device.ID+"/tags", bytes.NewReader([]byte(`{"tags":{"site":"lab","zone":"A"}}`)))
+	if err != nil {
+		t.Fatalf("new PUT /tags request error = %v", err)
+	}
+	tagReq.Header.Set("Content-Type", "application/json")
+	tagResp, err := http.DefaultClient.Do(tagReq)
+	if err != nil {
+		t.Fatalf("PUT /tags error = %v", err)
+	}
+	defer tagResp.Body.Close()
+	if tagResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(tagResp.Body)
+		t.Fatalf("PUT /tags status = %d, want %d, body=%s", tagResp.StatusCode, http.StatusOK, string(body))
+	}
+
+	profileResp, err := http.Post(httpServer.URL+"/api/v1/config-profiles", "application/json", bytes.NewReader([]byte(`{
+		"name":"night-mode",
+		"product_id":"`+product.ID+`",
+		"values":{"temperature":21.5,"enabled":true}
+	}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/config-profiles error = %v", err)
+	}
+	defer profileResp.Body.Close()
+	if profileResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(profileResp.Body)
+		t.Fatalf("POST /api/v1/config-profiles status = %d, want %d, body=%s", profileResp.StatusCode, http.StatusCreated, string(body))
+	}
+
+	var profile model.ConfigProfile
+	if err := json.NewDecoder(profileResp.Body).Decode(&profile); err != nil {
+		t.Fatalf("decode profile error = %v", err)
+	}
+
+	applyResp, err := http.Post(httpServer.URL+"/api/v1/config-profiles/"+profile.ID+"/apply", "application/json", bytes.NewReader([]byte(`{"device_id":"`+device.ID+`"}`)))
+	if err != nil {
+		t.Fatalf("POST /apply config error = %v", err)
+	}
+	defer applyResp.Body.Close()
+	if applyResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(applyResp.Body)
+		t.Fatalf("POST /apply config status = %d, want %d, body=%s", applyResp.StatusCode, http.StatusOK, string(body))
+	}
+
+	if _, err := service.CreateRule(context.Background(), "temp-high", "demo", product.ID, "", device.ID, true, model.AlertSeverityCritical, 0, model.RuleCondition{
+		Property: "temperature",
+		Operator: "gt",
+		Value:    30.0,
+	}); err != nil {
+		t.Fatalf("CreateRule() error = %v", err)
+	}
+	if err := service.HandleTelemetry(context.Background(), device.ID, time.Now().UTC(), map[string]any{"temperature": 32.2, "enabled": true}); err != nil {
+		t.Fatalf("HandleTelemetry() error = %v", err)
+	}
+
+	alertsResp, err := http.Get(httpServer.URL + "/api/v1/alerts?device_id=" + device.ID)
+	if err != nil {
+		t.Fatalf("GET /api/v1/alerts error = %v", err)
+	}
+	defer alertsResp.Body.Close()
+
+	var alerts []model.AlertEvent
+	if err := json.NewDecoder(alertsResp.Body).Decode(&alerts); err != nil {
+		t.Fatalf("decode alerts error = %v", err)
+	}
+	if len(alerts) == 0 {
+		t.Fatal("expected at least one alert")
+	}
+
+	updateAlertReq, err := http.NewRequest(http.MethodPut, httpServer.URL+"/api/v1/alerts/"+alerts[0].ID, bytes.NewReader([]byte(`{"status":"acknowledged","note":"checked from api test"}`)))
+	if err != nil {
+		t.Fatalf("new PUT /alerts request error = %v", err)
+	}
+	updateAlertReq.Header.Set("Content-Type", "application/json")
+	updateAlertResp, err := http.DefaultClient.Do(updateAlertReq)
+	if err != nil {
+		t.Fatalf("PUT /alerts/{id} error = %v", err)
+	}
+	defer updateAlertResp.Body.Close()
+	if updateAlertResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(updateAlertResp.Body)
+		t.Fatalf("PUT /alerts/{id} status = %d, want %d, body=%s", updateAlertResp.StatusCode, http.StatusOK, string(body))
+	}
+}
+
 func TestUIEndpoints(t *testing.T) {
 	t.Parallel()
 
@@ -395,9 +517,14 @@ func TestSimulatorAPIFlow(t *testing.T) {
 }
 
 func newTestServer() *api.Server {
+	server, _ := newTestServerWithService()
+	return server
+}
+
+func newTestServerWithService() (*api.Server, *core.Service) {
 	storage := memory.New(16)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	service := core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, logger)
+	service := core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, storage, logger)
 	simulators := simulator.NewManager(config.Config{GatewayDialAddr: "127.0.0.1:18830"}, service, logger)
-	return api.NewServer(config.Config{GatewayDialAddr: "127.0.0.1:18830"}, service, simulators, logger)
+	return api.NewServer(config.Config{GatewayDialAddr: "127.0.0.1:18830"}, service, simulators, logger), service
 }

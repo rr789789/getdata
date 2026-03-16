@@ -45,10 +45,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/products/", s.handleProductRoutes)
 	mux.HandleFunc("/api/v1/groups", s.handleGroups)
 	mux.HandleFunc("/api/v1/groups/", s.handleGroupRoutes)
+	mux.HandleFunc("/api/v1/config-profiles", s.handleConfigProfiles)
+	mux.HandleFunc("/api/v1/config-profiles/", s.handleConfigProfileRoutes)
 	mux.HandleFunc("/api/v1/devices", s.handleDevices)
 	mux.HandleFunc("/api/v1/devices/", s.handleDeviceRoutes)
 	mux.HandleFunc("/api/v1/rules", s.handleRules)
 	mux.HandleFunc("/api/v1/alerts", s.handleAlerts)
+	mux.HandleFunc("/api/v1/alerts/", s.handleAlertRoutes)
 	mux.HandleFunc("/api/v1/simulators", s.handleSimulators)
 	mux.HandleFunc("/api/v1/simulators/", s.handleSimulatorRoutes)
 	mux.Handle("/assets/", s.staticHandler())
@@ -136,6 +139,12 @@ func (s *Server) handleDeviceRoutes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch parts[1] {
+	case "tags":
+		if r.Method != http.MethodPut {
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		s.handleUpdateDeviceTags(w, r, deviceID)
 	case "shadow":
 		switch r.Method {
 		case http.MethodGet:
@@ -169,6 +178,7 @@ func (s *Server) handleCreateDevice(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Name      string            `json:"name"`
 		ProductID string            `json:"product_id"`
+		Tags      map[string]string `json:"tags"`
 		Metadata  map[string]string `json:"metadata"`
 	}
 
@@ -177,7 +187,7 @@ func (s *Server) handleCreateDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	device, err := s.service.CreateDevice(r.Context(), request.Name, request.ProductID, request.Metadata)
+	device, err := s.service.CreateDevice(r.Context(), request.Name, request.ProductID, request.Tags, request.Metadata)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, store.ErrProductNotFound) {
@@ -188,6 +198,29 @@ func (s *Server) handleCreateDevice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, device)
+}
+
+func (s *Server) handleUpdateDeviceTags(w http.ResponseWriter, r *http.Request, deviceID string) {
+	var request struct {
+		Tags map[string]string `json:"tags"`
+	}
+
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	device, err := s.service.UpdateDeviceTags(r.Context(), deviceID, request.Tags)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, store.ErrDeviceNotFound) {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, device)
 }
 
 func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {

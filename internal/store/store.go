@@ -18,6 +18,9 @@ var (
 	ErrGroupExists       = errors.New("device group already exists")
 	ErrRuleNotFound      = errors.New("rule not found")
 	ErrRuleExists        = errors.New("rule already exists")
+	ErrConfigNotFound    = errors.New("config profile not found")
+	ErrConfigExists      = errors.New("config profile already exists")
+	ErrAlertNotFound     = errors.New("alert not found")
 	ErrShadowNotFound    = errors.New("device shadow not found")
 )
 
@@ -25,6 +28,7 @@ type DeviceStore interface {
 	CreateDevice(ctx context.Context, device model.Device) error
 	GetDevice(ctx context.Context, deviceID string) (model.Device, error)
 	ListDevices(ctx context.Context) ([]model.Device, error)
+	SaveDevice(ctx context.Context, device model.Device) error
 }
 
 type ProductStore interface {
@@ -52,6 +56,13 @@ type RuleStore interface {
 	SaveRule(ctx context.Context, rule model.Rule) error
 }
 
+type ConfigStore interface {
+	CreateConfigProfile(ctx context.Context, profile model.ConfigProfile) error
+	GetConfigProfile(ctx context.Context, profileID string) (model.ConfigProfile, error)
+	ListConfigProfiles(ctx context.Context) ([]model.ConfigProfile, error)
+	SaveConfigProfile(ctx context.Context, profile model.ConfigProfile) error
+}
+
 type TelemetryStore interface {
 	AppendTelemetry(ctx context.Context, telemetry model.Telemetry) error
 	ListTelemetryByDevice(ctx context.Context, deviceID string, limit int) ([]model.Telemetry, error)
@@ -71,5 +82,7 @@ type CommandStore interface {
 
 type AlertStore interface {
 	AppendAlert(ctx context.Context, alert model.AlertEvent) error
+	GetAlert(ctx context.Context, alertID string) (model.AlertEvent, error)
+	SaveAlert(ctx context.Context, alert model.AlertEvent) error
 	ListAlerts(ctx context.Context, limit int) ([]model.AlertEvent, error)
 }

@@ -29,7 +29,7 @@ func New(cfg config.Config, logger *slog.Logger) *App {
 	}
 
 	storage := memory.New(cfg.TelemetryRetention)
-	service := core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, logger.With("component", "core"))
+	service := core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, storage, logger.With("component", "core"))
 	simulators := simulator.NewManager(cfg, service, logger.With("component", "simulator"))
 
 	return &App{
