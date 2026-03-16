@@ -18,10 +18,10 @@ jobs:
           go-version: "1.22"
 
       - name: Download modules
-        run: go mod download
+        run: go mod download all
 
       - name: Run tests
-        run: go test ./...
+        run: go test -mod=mod ./...
 
   build:
     needs: test
@@ -42,7 +42,7 @@ jobs:
           go-version: "1.22"
 
       - name: Download modules
-        run: go mod download
+        run: go mod download all
 
       - name: Build binary
         shell: bash
@@ -55,7 +55,7 @@ jobs:
           fi
           output="dist/mvp-platform_${{ matrix.goos }}_${{ matrix.goarch }}${ext}"
           GOOS="${{ matrix.goos }}" GOARCH="${{ matrix.goarch }}" CGO_ENABLED=0 \
-            go build -trimpath -ldflags "-s -w" -o "${output}" ./cmd/mvp-platform
+            go build -mod=mod -trimpath -ldflags "-s -w" -o "${output}" ./cmd/mvp-platform
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
