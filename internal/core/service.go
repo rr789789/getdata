@@ -39,11 +39,14 @@ type sessionTransport interface {
 }
 
 type Service struct {
+	tenants   store.TenantStore
 	products  store.ProductStore
 	devices   store.DeviceStore
 	groups    store.GroupStore
 	rules     store.RuleStore
 	configs   store.ConfigStore
+	firmware  store.FirmwareStore
+	campaigns store.OTACampaignStore
 	telemetry store.TelemetryStore
 	shadows   store.ShadowStore
 	commands  store.CommandStore
@@ -94,11 +97,14 @@ type ruleRuntimeState struct {
 }
 
 func NewService(
+	tenants store.TenantStore,
 	products store.ProductStore,
 	devices store.DeviceStore,
 	groups store.GroupStore,
 	rules store.RuleStore,
 	configs store.ConfigStore,
+	firmware store.FirmwareStore,
+	campaigns store.OTACampaignStore,
 	telemetry store.TelemetryStore,
 	shadows store.ShadowStore,
 	commands store.CommandStore,
@@ -117,11 +123,14 @@ func NewService(
 	startedAt := time.Now().UTC()
 
 	service := &Service{
+		tenants:    tenants,
 		products:   products,
 		devices:    devices,
 		groups:     groups,
 		rules:      rules,
 		configs:    configs,
+		firmware:   firmware,
+		campaigns:  campaigns,
 		telemetry:  telemetry,
 		shadows:    shadows,
 		commands:   commands,
@@ -141,40 +150,7 @@ func NewService(
 }
 
 func (s *Service) CreateProduct(ctx context.Context, name, description string, metadata map[string]string, accessProfile model.ProductAccessProfile, thingModel model.ThingModel) (model.Product, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return model.Product{}, fmt.Errorf("%w: product name is required", ErrInvalidProduct)
-	}
-
-	now := time.Now().UTC()
-	normalizedThingModel, err := normalizeThingModel(thingModel, 1, now)
-	if err != nil {
-		return model.Product{}, err
-	}
-	normalizedAccessProfile, err := normalizeAccessProfile(accessProfile)
-	if err != nil {
-		return model.Product{}, err
-	}
-	if err := validateAccessMappings(normalizedThingModel, normalizedAccessProfile); err != nil {
-		return model.Product{}, err
-	}
-
-	product := model.Product{
-		ID:            util.NewID("prd"),
-		Key:           util.NewID("pk"),
-		Name:          name,
-		Description:   strings.TrimSpace(description),
-		Metadata:      cloneStringMap(metadata),
-		AccessProfile: normalizedAccessProfile,
-		ThingModel:    normalizedThingModel,
-		CreatedAt:     now,
-		UpdatedAt:     now,
-	}
-
-	if err := s.products.CreateProduct(ctx, product); err != nil {
-		return model.Product{}, err
-	}
-	return product, nil
+	return s.CreateProductWithTenant(ctx, "", name, description, metadata, accessProfile, thingModel)
 }
 
 func (s *Service) GetProduct(ctx context.Context, productID string) (model.ProductView, error) {
@@ -186,20 +162,7 @@ func (s *Service) GetProduct(ctx context.Context, productID string) (model.Produ
 }
 
 func (s *Service) ListProducts(ctx context.Context) ([]model.ProductView, error) {
-	products, err := s.products.ListProducts(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	views := make([]model.ProductView, 0, len(products))
-	for _, product := range products {
-		view, buildErr := s.buildProductView(ctx, product)
-		if buildErr != nil {
-			return nil, buildErr
-		}
-		views = append(views, view)
-	}
-	return views, nil
+	return s.ListProductsByTenant(ctx, "")
 }
 
 func (s *Service) UpdateProductThingModel(ctx context.Context, productID string, thingModel model.ThingModel) (model.Product, error) {
@@ -249,33 +212,7 @@ func (s *Service) ProtocolCatalog() []model.ProtocolCatalogEntry {
 }
 
 func (s *Service) CreateGroup(ctx context.Context, name, description, productID string, tags map[string]string) (model.DeviceGroup, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return model.DeviceGroup{}, fmt.Errorf("%w: group name is required", ErrInvalidGroup)
-	}
-
-	productID = strings.TrimSpace(productID)
-	if productID != "" {
-		if _, err := s.products.GetProduct(ctx, productID); err != nil {
-			return model.DeviceGroup{}, err
-		}
-	}
-
-	now := time.Now().UTC()
-	group := model.DeviceGroup{
-		ID:          util.NewID("grp"),
-		Name:        name,
-		Description: strings.TrimSpace(description),
-		ProductID:   productID,
-		Tags:        cloneStringMap(tags),
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
-
-	if err := s.groups.CreateGroup(ctx, group); err != nil {
-		return model.DeviceGroup{}, err
-	}
-	return group, nil
+	return s.CreateGroupWithTenant(ctx, "", name, description, productID, tags)
 }
 
 func (s *Service) GetGroup(ctx context.Context, groupID string) (model.GroupView, error) {
@@ -287,20 +224,7 @@ func (s *Service) GetGroup(ctx context.Context, groupID string) (model.GroupView
 }
 
 func (s *Service) ListGroups(ctx context.Context) ([]model.GroupView, error) {
-	groups, err := s.groups.ListGroups(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	views := make([]model.GroupView, 0, len(groups))
-	for _, group := range groups {
-		view, buildErr := s.buildGroupView(ctx, group)
-		if buildErr != nil {
-			return nil, buildErr
-		}
-		views = append(views, view)
-	}
-	return views, nil
+	return s.ListGroupsByTenant(ctx, "")
 }
 
 func (s *Service) AssignDeviceToGroup(ctx context.Context, groupID, deviceID string) (model.GroupView, error) {
@@ -312,6 +236,9 @@ func (s *Service) AssignDeviceToGroup(ctx context.Context, groupID, deviceID str
 	device, err := s.devices.GetDevice(ctx, strings.TrimSpace(deviceID))
 	if err != nil {
 		return model.GroupView{}, err
+	}
+	if group.TenantID != "" && device.TenantID != group.TenantID {
+		return model.GroupView{}, fmt.Errorf("%w: group tenant scope mismatch", ErrInvalidGroup)
 	}
 
 	if group.ProductID != "" && device.ProductID != group.ProductID {
@@ -339,51 +266,7 @@ func (s *Service) RemoveDeviceFromGroup(ctx context.Context, groupID, deviceID s
 }
 
 func (s *Service) CreateDevice(ctx context.Context, name, productID string, tags, metadata map[string]string) (model.Device, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		name = "device"
-	}
-
-	productID = strings.TrimSpace(productID)
-	var product model.Product
-	var err error
-	if productID != "" {
-		product, err = s.products.GetProduct(ctx, productID)
-		if err != nil {
-			return model.Device{}, err
-		}
-	}
-
-	now := time.Now().UTC()
-	device := model.Device{
-		ID:         util.NewID("dev"),
-		Name:       name,
-		ProductID:  productID,
-		ProductKey: product.Key,
-		Token:      util.NewToken(),
-		Tags:       cloneStringMap(tags),
-		Metadata:   cloneStringMap(metadata),
-		CreatedAt:  now,
-	}
-
-	if err := s.devices.CreateDevice(ctx, device); err != nil {
-		return model.Device{}, err
-	}
-
-	shadow := model.DeviceShadow{
-		DeviceID:  device.ID,
-		ProductID: productID,
-		Reported:  map[string]any{},
-		Desired:   map[string]any{},
-		Version:   1,
-		UpdatedAt: now,
-	}
-	if err := s.shadows.SaveShadow(ctx, shadow); err != nil {
-		return model.Device{}, err
-	}
-
-	s.registeredDevices.Add(1)
-	return device, nil
+	return s.CreateDeviceWithTenant(ctx, "", name, productID, tags, metadata)
 }
 
 func (s *Service) UpdateDeviceTags(ctx context.Context, deviceID string, tags map[string]string) (model.Device, error) {
@@ -400,57 +283,11 @@ func (s *Service) UpdateDeviceTags(ctx context.Context, deviceID string, tags ma
 }
 
 func (s *Service) CreateConfigProfile(ctx context.Context, name, description, productID string, values map[string]any) (model.ConfigProfile, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return model.ConfigProfile{}, fmt.Errorf("%w: config profile name is required", ErrInvalidConfig)
-	}
-
-	productID = strings.TrimSpace(productID)
-	product, hasProduct := s.loadProduct(ctx, productID)
-	if productID != "" && !hasProduct {
-		return model.ConfigProfile{}, store.ErrProductNotFound
-	}
-	if hasProduct {
-		if err := validateThingValues(product, values); err != nil {
-			return model.ConfigProfile{}, err
-		}
-	}
-
-	now := time.Now().UTC()
-	profile := model.ConfigProfile{
-		ID:          util.NewID("cfg"),
-		Name:        name,
-		Description: strings.TrimSpace(description),
-		ProductID:   productID,
-		Values:      cloneAnyMap(values),
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
-	if profile.Values == nil {
-		profile.Values = map[string]any{}
-	}
-
-	if err := s.configs.CreateConfigProfile(ctx, profile); err != nil {
-		return model.ConfigProfile{}, err
-	}
-	return profile, nil
+	return s.CreateConfigProfileWithTenant(ctx, "", name, description, productID, values)
 }
 
 func (s *Service) ListConfigProfiles(ctx context.Context) ([]model.ConfigProfileView, error) {
-	profiles, err := s.configs.ListConfigProfiles(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	views := make([]model.ConfigProfileView, 0, len(profiles))
-	for _, profile := range profiles {
-		view, buildErr := s.buildConfigProfileView(ctx, profile)
-		if buildErr != nil {
-			return nil, buildErr
-		}
-		views = append(views, view)
-	}
-	return views, nil
+	return s.ListConfigProfilesByTenant(ctx, "")
 }
 
 func (s *Service) ApplyConfigProfile(ctx context.Context, profileID, deviceID string) (model.DeviceShadow, error) {
@@ -462,6 +299,9 @@ func (s *Service) ApplyConfigProfile(ctx context.Context, profileID, deviceID st
 	device, err := s.devices.GetDevice(ctx, strings.TrimSpace(deviceID))
 	if err != nil {
 		return model.DeviceShadow{}, err
+	}
+	if profile.TenantID != "" && device.TenantID != profile.TenantID {
+		return model.DeviceShadow{}, fmt.Errorf("%w: config profile tenant scope mismatch", ErrInvalidConfig)
 	}
 	if profile.ProductID != "" && device.ProductID != profile.ProductID {
 		return model.DeviceShadow{}, fmt.Errorf("%w: config profile product scope mismatch", ErrInvalidConfig)
@@ -491,25 +331,7 @@ func (s *Service) GetDevice(ctx context.Context, deviceID string) (model.DeviceV
 }
 
 func (s *Service) ListDevices(ctx context.Context, productID string) ([]model.DeviceView, error) {
-	devices, err := s.devices.ListDevices(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	productID = strings.TrimSpace(productID)
-	result := make([]model.DeviceView, 0, len(devices))
-	for _, device := range devices {
-		if productID != "" && device.ProductID != productID {
-			continue
-		}
-
-		view, buildErr := s.buildDeviceView(ctx, device)
-		if buildErr != nil {
-			return nil, buildErr
-		}
-		result = append(result, view)
-	}
-	return result, nil
+	return s.ListDevicesByTenant(ctx, "", productID)
 }
 
 func (s *Service) GetShadow(ctx context.Context, deviceID string) (model.DeviceShadow, error) {
@@ -561,95 +383,18 @@ func (s *Service) CreateRule(
 	cooldownSeconds int,
 	condition model.RuleCondition,
 ) (model.Rule, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return model.Rule{}, fmt.Errorf("%w: rule name is required", ErrInvalidRule)
-	}
-
-	groupID = strings.TrimSpace(groupID)
-	deviceID = strings.TrimSpace(deviceID)
-	productID = strings.TrimSpace(productID)
-	if productID == "" && groupID == "" && deviceID == "" {
-		return model.Rule{}, fmt.Errorf("%w: at least one scope product_id, group_id or device_id is required", ErrInvalidRule)
-	}
-	if cooldownSeconds < 0 {
-		return model.Rule{}, fmt.Errorf("%w: cooldown_seconds must be >= 0", ErrInvalidRule)
-	}
-
-	if groupID != "" {
-		group, err := s.groups.GetGroup(ctx, groupID)
-		if err != nil {
-			return model.Rule{}, err
-		}
-		if group.ProductID != "" {
-			if productID == "" {
-				productID = group.ProductID
-			} else if productID != group.ProductID {
-				return model.Rule{}, fmt.Errorf("%w: group product scope mismatch", ErrInvalidRule)
-			}
-		}
-	}
-
-	if deviceID != "" {
-		device, err := s.devices.GetDevice(ctx, deviceID)
-		if err != nil {
-			return model.Rule{}, err
-		}
-		if device.ProductID != "" {
-			if productID == "" {
-				productID = device.ProductID
-			} else if productID != device.ProductID {
-				return model.Rule{}, fmt.Errorf("%w: device product scope mismatch", ErrInvalidRule)
-			}
-		}
-	}
-
-	product, hasProduct := s.loadProduct(ctx, productID)
-	normalizedCondition, err := normalizeRuleCondition(product, hasProduct, condition)
-	if err != nil {
-		return model.Rule{}, err
-	}
-
-	now := time.Now().UTC()
-	rule := model.Rule{
-		ID:              util.NewID("rul"),
-		Name:            name,
-		Description:     strings.TrimSpace(description),
-		ProductID:       productID,
-		GroupID:         groupID,
-		DeviceID:        deviceID,
-		Enabled:         enabled,
-		Severity:        normalizeSeverity(severity),
-		CooldownSeconds: cooldownSeconds,
-		Condition:       normalizedCondition,
-		CreatedAt:       now,
-		UpdatedAt:       now,
-	}
-
-	if err := s.rules.CreateRule(ctx, rule); err != nil {
-		return model.Rule{}, err
-	}
-	return rule, nil
+	return s.CreateRuleWithTenant(ctx, "", name, description, productID, groupID, deviceID, enabled, severity, cooldownSeconds, condition, nil)
 }
 
 func (s *Service) ListRules(ctx context.Context) ([]model.RuleView, error) {
-	rules, err := s.rules.ListRules(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	views := make([]model.RuleView, 0, len(rules))
-	for _, rule := range rules {
-		view, buildErr := s.buildRuleView(ctx, rule)
-		if buildErr != nil {
-			return nil, buildErr
-		}
-		views = append(views, view)
-	}
-	return views, nil
+	return s.ListRulesByTenant(ctx, "")
 }
 
 func (s *Service) ListAlerts(ctx context.Context, limit int, productID, groupID, deviceID, ruleID string) ([]model.AlertEvent, error) {
+	return s.ListAlertsByTenant(ctx, "", limit, productID, groupID, deviceID, ruleID)
+}
+
+func (s *Service) ListAlertsByTenant(ctx context.Context, tenantID string, limit int, productID, groupID, deviceID, ruleID string) ([]model.AlertEvent, error) {
 	sourceLimit := limit
 	if sourceLimit <= 0 {
 		sourceLimit = 100
@@ -670,6 +415,9 @@ func (s *Service) ListAlerts(ctx context.Context, limit int, productID, groupID,
 
 	filtered := make([]model.AlertEvent, 0, len(alerts))
 	for _, alert := range alerts {
+		if tenantID != "" && alert.TenantID != tenantID {
+			continue
+		}
 		if productID != "" && alert.ProductID != productID {
 			continue
 		}
@@ -859,76 +607,7 @@ func (s *Service) HandleTelemetry(ctx context.Context, deviceID string, at time.
 }
 
 func (s *Service) SendCommand(ctx context.Context, deviceID, name string, params map[string]any) (model.Command, error) {
-	device, err := s.devices.GetDevice(ctx, deviceID)
-	if err != nil {
-		return model.Command{}, err
-	}
-
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return model.Command{}, errors.New("command name is required")
-	}
-
-	product, hasProduct := s.loadProduct(ctx, device.ProductID)
-	if hasProduct {
-		if err := validateCommandName(product, name); err != nil {
-			return model.Command{}, err
-		}
-	}
-
-	now := time.Now().UTC()
-	command := model.Command{
-		ID:        util.NewID("cmd"),
-		DeviceID:  deviceID,
-		Name:      name,
-		Params:    cloneAnyMap(params),
-		Status:    model.CommandStatusPending,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-
-	if err := s.commands.SaveCommand(ctx, command); err != nil {
-		return model.Command{}, err
-	}
-
-	s.mu.RLock()
-	state := s.states[deviceID]
-	session := state.session
-	s.mu.RUnlock()
-
-	if session == nil {
-		updated, updateErr := s.commands.UpdateCommandStatus(ctx, command.ID, model.CommandStatusFailed, ErrDeviceOffline.Error())
-		if updateErr == nil {
-			command = updated
-		}
-		return command, ErrDeviceOffline
-	}
-
-	message := model.ServerMessage{
-		Type:       "command",
-		ServerTime: now.UnixMilli(),
-		CommandID:  command.ID,
-		Name:       command.Name,
-		Params:     cloneAnyMap(command.Params),
-	}
-
-	if err := session.Send(message); err != nil {
-		updated, updateErr := s.commands.UpdateCommandStatus(ctx, command.ID, model.CommandStatusFailed, err.Error())
-		if updateErr == nil {
-			command = updated
-		}
-		return command, err
-	}
-
-	updated, err := s.commands.UpdateCommandStatus(ctx, command.ID, model.CommandStatusSent, "sent")
-	if err != nil {
-		return model.Command{}, err
-	}
-
-	s.commandsSent.Add(1)
-	s.recordCommandPublished(sessionTransportName(session))
-	s.TouchDevice(deviceID, now)
-	return updated, nil
+	return s.sendCommandWithCampaign(ctx, deviceID, "", name, params)
 }
 
 func (s *Service) HandleCommandAck(ctx context.Context, deviceID, commandID, status, result string) error {
@@ -948,6 +627,11 @@ func (s *Service) HandleCommandAck(ctx context.Context, deviceID, commandID, sta
 
 	if _, err := s.commands.UpdateCommandStatus(ctx, commandID, nextStatus, strings.TrimSpace(result)); err != nil {
 		return err
+	}
+	if command.CampaignID != "" {
+		if err := s.updateCampaignFromCommandAck(ctx, command.CampaignID, nextStatus); err != nil {
+			s.logger.Warn("unable to update ota campaign status from command ack", "campaign_id", command.CampaignID, "command_id", commandID, "error", err)
+		}
 	}
 
 	s.commandAcks.Add(1)
@@ -1122,12 +806,18 @@ func (s *Service) Stats() model.Stats {
 }
 
 func (s *Service) buildProductView(ctx context.Context, product model.Product) (model.ProductView, error) {
+	view := model.ProductView{Product: product}
+	tenant, err := s.tenantSummary(ctx, product.TenantID)
+	if err != nil {
+		return model.ProductView{}, err
+	}
+	view.Tenant = tenant
+
 	devices, err := s.devices.ListDevices(ctx)
 	if err != nil {
 		return model.ProductView{}, err
 	}
 
-	view := model.ProductView{Product: product}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -1146,6 +836,11 @@ func (s *Service) buildProductView(ctx context.Context, product model.Product) (
 
 func (s *Service) buildGroupView(ctx context.Context, group model.DeviceGroup) (model.GroupView, error) {
 	view := model.GroupView{Group: group}
+	tenant, err := s.tenantSummary(ctx, group.TenantID)
+	if err != nil {
+		return model.GroupView{}, err
+	}
+	view.Tenant = tenant
 	if group.ProductID != "" {
 		product, err := s.products.GetProduct(ctx, group.ProductID)
 		if err != nil && !errors.Is(err, store.ErrProductNotFound) {
@@ -1175,6 +870,11 @@ func (s *Service) buildGroupView(ctx context.Context, group model.DeviceGroup) (
 
 func (s *Service) buildRuleView(ctx context.Context, rule model.Rule) (model.RuleView, error) {
 	view := model.RuleView{Rule: rule}
+	tenant, err := s.tenantSummary(ctx, rule.TenantID)
+	if err != nil {
+		return model.RuleView{}, err
+	}
+	view.Tenant = tenant
 
 	if rule.ProductID != "" {
 		product, err := s.products.GetProduct(ctx, rule.ProductID)
@@ -1226,6 +926,11 @@ func (s *Service) buildRuleView(ctx context.Context, rule model.Rule) (model.Rul
 
 func (s *Service) buildConfigProfileView(ctx context.Context, profile model.ConfigProfile) (model.ConfigProfileView, error) {
 	view := model.ConfigProfileView{Profile: profile}
+	tenant, err := s.tenantSummary(ctx, profile.TenantID)
+	if err != nil {
+		return model.ConfigProfileView{}, err
+	}
+	view.Tenant = tenant
 	if profile.ProductID == "" {
 		return view, nil
 	}
@@ -1242,6 +947,11 @@ func (s *Service) buildConfigProfileView(ctx context.Context, profile model.Conf
 
 func (s *Service) buildDeviceView(ctx context.Context, device model.Device) (model.DeviceView, error) {
 	view := model.DeviceView{Device: device}
+	tenant, err := s.tenantSummary(ctx, device.TenantID)
+	if err != nil {
+		return model.DeviceView{}, err
+	}
+	view.Tenant = tenant
 	if device.ProductID != "" {
 		product, err := s.products.GetProduct(ctx, device.ProductID)
 		if err != nil && !errors.Is(err, store.ErrProductNotFound) {
@@ -1316,6 +1026,9 @@ func (s *Service) evaluateRules(ctx context.Context, device model.Device, teleme
 		if !rule.Enabled {
 			continue
 		}
+		if rule.TenantID != "" && rule.TenantID != device.TenantID {
+			continue
+		}
 		if rule.ProductID != "" && rule.ProductID != device.ProductID {
 			continue
 		}
@@ -1349,26 +1062,7 @@ func (s *Service) evaluateRules(ctx context.Context, device model.Device, teleme
 			continue
 		}
 
-		alert := model.AlertEvent{
-			ID:          util.NewID("alt"),
-			RuleID:      rule.ID,
-			RuleName:    rule.Name,
-			ProductID:   device.ProductID,
-			GroupID:     rule.GroupID,
-			DeviceID:    device.ID,
-			DeviceName:  device.Name,
-			Property:    rule.Condition.Property,
-			Operator:    rule.Condition.Operator,
-			Threshold:   rule.Condition.Value,
-			Value:       value,
-			Severity:    rule.Severity,
-			Status:      model.AlertStatusNew,
-			Message:     fmt.Sprintf("%s: %s %s %v, got %v", rule.Name, rule.Condition.Property, rule.Condition.Operator, rule.Condition.Value, value),
-			TriggeredAt: telemetry.Timestamp,
-		}
-		if err := s.alerts.AppendAlert(ctx, alert); err != nil {
-			return err
-		}
+		s.executeRuleActions(ctx, rule, device, telemetry, value)
 		s.recordRuleTrigger(rule.ID, device.ID, telemetry.Timestamp)
 	}
 	return nil

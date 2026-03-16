@@ -46,6 +46,9 @@
           </div>
         </div>
         <div class="topbar-actions">
+          <select id="tenant-selector" aria-label="Tenant Filter">
+            <option value="">All Tenants</option>
+          </select>
           <button id="locale-toggle" class="button ghost" type="button">中文 / EN</button>
           <button id="refresh-button" class="button ghost" type="button">Refresh</button>
         </div>
@@ -234,6 +237,41 @@
             </div>
             <div id="protocol-catalog-list" class="stack empty">Loading protocol catalog...</div>
           </section>
+
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">Tenant</p>
+                <h3>Tenant Workspace</h3>
+              </div>
+              <span id="tenant-count" class="chip">0</span>
+            </div>
+            <div class="product-workbench">
+              <form id="tenant-form" class="grid-form">
+                <label>
+                  <span>Tenant Name</span>
+                  <input id="tenant-name" type="text" placeholder="factory-east">
+                </label>
+                <label>
+                  <span>Tenant Slug</span>
+                  <input id="tenant-slug" type="text" placeholder="factory-east">
+                </label>
+                <label class="wide">
+                  <span>Description</span>
+                  <input id="tenant-description" type="text" placeholder="Factory East business unit">
+                </label>
+                <label class="wide">
+                  <span>Metadata JSON</span>
+                  <textarea id="tenant-metadata" rows="3">{"region":"cn-east","tier":"production"}</textarea>
+                </label>
+                <div class="actions wide">
+                  <button class="button primary" type="submit">Create Tenant</button>
+                  <span id="tenant-status" class="hint"></span>
+                </div>
+              </form>
+              <div id="tenant-list" class="stack empty">No tenants yet.</div>
+            </div>
+          </section>
         </section>
 
         <section class="view-section" data-view="devices">
@@ -401,6 +439,32 @@
                     <span>Description</span>
                     <input id="rule-description" type="text" placeholder="Alert when temperature is higher than 30">
                   </label>
+                  <label>
+                    <span>Action Type</span>
+                    <select id="rule-action-type">
+                      <option value="alert">alert</option>
+                      <option value="send_command">send_command</option>
+                      <option value="apply_config_profile">apply_config_profile</option>
+                    </select>
+                  </label>
+                  <label id="rule-action-command-wrap">
+                    <span>Command Name</span>
+                    <input id="rule-action-command" type="text" placeholder="reboot">
+                  </label>
+                  <label id="rule-action-config-wrap">
+                    <span>Config Profile</span>
+                    <select id="rule-action-config-id">
+                      <option value="">Optional</option>
+                    </select>
+                  </label>
+                  <label class="wide" id="rule-action-message-wrap">
+                    <span>Alert Message</span>
+                    <input id="rule-action-message" type="text" placeholder="Temperature is over threshold">
+                  </label>
+                  <label class="wide" id="rule-action-params-wrap">
+                    <span>Command Params JSON</span>
+                    <textarea id="rule-action-params" rows="4">{"delay":1}</textarea>
+                  </label>
                   <div class="actions wide">
                     <button class="button primary" type="submit">Create Rule</button>
                     <span id="rule-status" class="hint"></span>
@@ -460,6 +524,116 @@
               <div id="config-list" class="stack empty">No config profiles yet.</div>
             </div>
           </section>
+
+          <section class="overview-grid">
+            <section class="panel">
+              <div class="section-head">
+                <div>
+                  <p class="section-kicker">Firmware</p>
+                  <h3>Firmware Repository</h3>
+                </div>
+                <span id="firmware-count" class="chip">0</span>
+              </div>
+              <div class="product-workbench">
+                <form id="firmware-form" class="grid-form">
+                  <label>
+                    <span>Firmware Name</span>
+                    <input id="firmware-name" type="text" placeholder="esp8266-universal">
+                  </label>
+                  <label>
+                    <span>Version</span>
+                    <input id="firmware-version" type="text" placeholder="1.0.0">
+                  </label>
+                  <label>
+                    <span>Product</span>
+                    <select id="firmware-product-id">
+                      <option value="">Optional</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>File Name</span>
+                    <input id="firmware-file-name" type="text" placeholder="esp8266-universal.bin">
+                  </label>
+                  <label class="wide">
+                    <span>Download URL</span>
+                    <input id="firmware-url" type="text" placeholder="https://example.com/firmware/esp8266-universal.bin">
+                  </label>
+                  <label>
+                    <span>Checksum</span>
+                    <input id="firmware-checksum" type="text" placeholder="sha256 hash">
+                  </label>
+                  <label>
+                    <span>Checksum Type</span>
+                    <input id="firmware-checksum-type" type="text" placeholder="sha256">
+                  </label>
+                  <label>
+                    <span>Size Bytes</span>
+                    <input id="firmware-size-bytes" type="number" min="0" step="1" value="0">
+                  </label>
+                  <label class="wide">
+                    <span>Notes</span>
+                    <input id="firmware-notes" type="text" placeholder="Stable rollout for ESP8266 sensors">
+                  </label>
+                  <label class="wide">
+                    <span>Metadata JSON</span>
+                    <textarea id="firmware-metadata" rows="3">{"board":"esp8266","channel":"stable"}</textarea>
+                  </label>
+                  <div class="actions wide">
+                    <button class="button primary" type="submit">Create Firmware</button>
+                    <span id="firmware-status" class="hint"></span>
+                  </div>
+                </form>
+                <div id="firmware-list" class="stack empty">No firmware artifacts yet.</div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="section-head">
+                <div>
+                  <p class="section-kicker">OTA</p>
+                  <h3>OTA Campaigns</h3>
+                </div>
+                <span id="ota-count" class="chip">0</span>
+              </div>
+              <div class="product-workbench">
+                <form id="ota-form" class="grid-form">
+                  <label>
+                    <span>Campaign Name</span>
+                    <input id="ota-name" type="text" placeholder="east-factory-rollout">
+                  </label>
+                  <label>
+                    <span>Firmware</span>
+                    <select id="ota-firmware-id">
+                      <option value="">Select firmware</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Product Scope</span>
+                    <select id="ota-product-id">
+                      <option value="">Optional</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Group Scope</span>
+                    <select id="ota-group-id">
+                      <option value="">Optional</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Device Scope</span>
+                    <select id="ota-device-id">
+                      <option value="">Optional</option>
+                    </select>
+                  </label>
+                  <div class="actions wide">
+                    <button class="button accent" type="submit">Create OTA Campaign</button>
+                    <span id="ota-status" class="hint"></span>
+                  </div>
+                </form>
+                <div id="ota-list" class="stack empty">No OTA campaigns yet.</div>
+              </div>
+            </section>
+          </section>
         </section>
 
         <section class="view-section" data-view="simulator">
@@ -511,5 +685,6 @@
   </div>
 
   <script src="/assets/app.js" defer></script>
+  <script src="/assets/advanced.js" defer></script>
 </body>
 </html>

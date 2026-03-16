@@ -8,11 +8,14 @@ import (
 )
 
 type Snapshot struct {
+	Tenants            map[string]model.Tenant         `json:"tenants"`
 	Products           map[string]model.Product        `json:"products"`
 	Devices            map[string]model.Device         `json:"devices"`
 	Groups             map[string]model.DeviceGroup    `json:"groups"`
 	Rules              map[string]model.Rule           `json:"rules"`
 	ConfigProfiles     map[string]model.ConfigProfile  `json:"config_profiles"`
+	FirmwareArtifacts  map[string]model.FirmwareArtifact `json:"firmware_artifacts"`
+	OTACampaigns       map[string]model.OTACampaign    `json:"ota_campaigns"`
 	Shadows            map[string]model.DeviceShadow   `json:"shadows"`
 	TelemetryByDevice  map[string][]model.Telemetry    `json:"telemetry_by_device"`
 	CommandByID        map[string]model.Command        `json:"command_by_id"`
@@ -42,17 +45,20 @@ func (s *Store) StorageStats(_ context.Context) (model.StorageStats, error) {
 	}
 
 	return model.StorageStats{
-		Backend:          s.BackendName(),
-		Products:         int64(len(s.products)),
-		Devices:          int64(len(s.devices)),
-		Groups:           int64(len(s.groups)),
-		Rules:            int64(len(s.rules)),
-		ConfigProfiles:   int64(len(s.configProfiles)),
-		Shadows:          int64(len(s.shadows)),
-		Commands:         int64(len(s.commandByID)),
-		Alerts:           int64(len(s.alerts)),
-		TelemetrySeries:  int64(len(s.telemetryByDevice)),
-		TelemetrySamples: telemetrySamples,
+		Backend:           s.BackendName(),
+		Tenants:           int64(len(s.tenants)),
+		Products:          int64(len(s.products)),
+		Devices:           int64(len(s.devices)),
+		Groups:            int64(len(s.groups)),
+		Rules:             int64(len(s.rules)),
+		ConfigProfiles:    int64(len(s.configProfiles)),
+		FirmwareArtifacts: int64(len(s.firmwareArtifacts)),
+		OTACampaigns:      int64(len(s.otaCampaigns)),
+		Shadows:           int64(len(s.shadows)),
+		Commands:          int64(len(s.commandByID)),
+		Alerts:            int64(len(s.alerts)),
+		TelemetrySeries:   int64(len(s.telemetryByDevice)),
+		TelemetrySamples:  telemetrySamples,
 	}, nil
 }
 
@@ -61,11 +67,14 @@ func (s *Store) Snapshot() Snapshot {
 	defer s.mu.RUnlock()
 
 	snapshot := Snapshot{
+		Tenants:            make(map[string]model.Tenant, len(s.tenants)),
 		Products:           make(map[string]model.Product, len(s.products)),
 		Devices:            make(map[string]model.Device, len(s.devices)),
 		Groups:             make(map[string]model.DeviceGroup, len(s.groups)),
 		Rules:              make(map[string]model.Rule, len(s.rules)),
 		ConfigProfiles:     make(map[string]model.ConfigProfile, len(s.configProfiles)),
+		FirmwareArtifacts:  make(map[string]model.FirmwareArtifact, len(s.firmwareArtifacts)),
+		OTACampaigns:       make(map[string]model.OTACampaign, len(s.otaCampaigns)),
 		Shadows:            make(map[string]model.DeviceShadow, len(s.shadows)),
 		TelemetryByDevice:  make(map[string][]model.Telemetry, len(s.telemetryByDevice)),
 		CommandByID:        make(map[string]model.Command, len(s.commandByID)),
@@ -77,6 +86,9 @@ func (s *Store) Snapshot() Snapshot {
 		AlertRetention:     s.alertRetention,
 	}
 
+	for key, value := range s.tenants {
+		snapshot.Tenants[key] = cloneTenant(value)
+	}
 	for key, value := range s.products {
 		snapshot.Products[key] = cloneProduct(value)
 	}
@@ -91,6 +103,12 @@ func (s *Store) Snapshot() Snapshot {
 	}
 	for key, value := range s.configProfiles {
 		snapshot.ConfigProfiles[key] = cloneConfigProfile(value)
+	}
+	for key, value := range s.firmwareArtifacts {
+		snapshot.FirmwareArtifacts[key] = cloneFirmwareArtifact(value)
+	}
+	for key, value := range s.otaCampaigns {
+		snapshot.OTACampaigns[key] = cloneOTACampaign(value)
 	}
 	for key, value := range s.shadows {
 		snapshot.Shadows[key] = cloneShadow(value)
@@ -125,6 +143,11 @@ func (s *Store) Restore(snapshot Snapshot) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.tenants = make(map[string]model.Tenant, len(snapshot.Tenants))
+	for key, value := range snapshot.Tenants {
+		s.tenants[key] = cloneTenant(value)
+	}
+
 	s.products = make(map[string]model.Product, len(snapshot.Products))
 	for key, value := range snapshot.Products {
 		s.products[key] = cloneProduct(value)
@@ -148,6 +171,16 @@ func (s *Store) Restore(snapshot Snapshot) {
 	s.configProfiles = make(map[string]model.ConfigProfile, len(snapshot.ConfigProfiles))
 	for key, value := range snapshot.ConfigProfiles {
 		s.configProfiles[key] = cloneConfigProfile(value)
+	}
+
+	s.firmwareArtifacts = make(map[string]model.FirmwareArtifact, len(snapshot.FirmwareArtifacts))
+	for key, value := range snapshot.FirmwareArtifacts {
+		s.firmwareArtifacts[key] = cloneFirmwareArtifact(value)
+	}
+
+	s.otaCampaigns = make(map[string]model.OTACampaign, len(snapshot.OTACampaigns))
+	for key, value := range snapshot.OTACampaigns {
+		s.otaCampaigns[key] = cloneOTACampaign(value)
 	}
 
 	s.shadows = make(map[string]model.DeviceShadow, len(snapshot.Shadows))

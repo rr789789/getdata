@@ -65,11 +65,12 @@ func (s *Server) handleProductRoutes(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateProduct(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Name          string                    `json:"name"`
-		Description   string                    `json:"description"`
-		Metadata      map[string]string         `json:"metadata"`
+		TenantID      string                     `json:"tenant_id"`
+		Name          string                     `json:"name"`
+		Description   string                     `json:"description"`
+		Metadata      map[string]string          `json:"metadata"`
 		AccessProfile model.ProductAccessProfile `json:"access_profile"`
-		ThingModel    model.ThingModel          `json:"thing_model"`
+		ThingModel    model.ThingModel           `json:"thing_model"`
 	}
 
 	if err := decodeJSON(r, &request); err != nil {
@@ -77,9 +78,14 @@ func (s *Server) handleCreateProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	product, err := s.service.CreateProduct(r.Context(), request.Name, request.Description, request.Metadata, request.AccessProfile, request.ThingModel)
+	product, err := s.service.CreateProductWithTenant(r.Context(), request.TenantID, request.Name, request.Description, request.Metadata, request.AccessProfile, request.ThingModel)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		switch {
+		case errors.Is(err, store.ErrTenantNotFound):
+			writeError(w, http.StatusNotFound, err.Error())
+		default:
+			writeError(w, http.StatusBadRequest, err.Error())
+		}
 		return
 	}
 
@@ -87,7 +93,7 @@ func (s *Server) handleCreateProduct(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListProducts(w http.ResponseWriter, r *http.Request) {
-	products, err := s.service.ListProducts(r.Context())
+	products, err := s.service.ListProductsByTenant(r.Context(), strings.TrimSpace(r.URL.Query().Get("tenant_id")))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

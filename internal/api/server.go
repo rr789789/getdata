@@ -44,6 +44,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/healthz", s.handleHealth)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	mux.HandleFunc("/api/v1/protocol-catalog", s.handleProtocolCatalog)
+	mux.HandleFunc("/api/v1/tenants", s.handleTenants)
 	mux.HandleFunc("/api/v1/ingest/http/", s.handleHTTPIngestRoutes)
 	mux.HandleFunc("/api/v1/products", s.handleProducts)
 	mux.HandleFunc("/api/v1/products/", s.handleProductRoutes)
@@ -51,6 +52,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/groups/", s.handleGroupRoutes)
 	mux.HandleFunc("/api/v1/config-profiles", s.handleConfigProfiles)
 	mux.HandleFunc("/api/v1/config-profiles/", s.handleConfigProfileRoutes)
+	mux.HandleFunc("/api/v1/firmware", s.handleFirmwareArtifacts)
+	mux.HandleFunc("/api/v1/ota-campaigns", s.handleOTACampaigns)
 	mux.HandleFunc("/api/v1/devices", s.handleDevices)
 	mux.HandleFunc("/api/v1/devices/", s.handleDeviceRoutes)
 	mux.HandleFunc("/api/v1/rules", s.handleRules)
@@ -185,6 +188,7 @@ func (s *Server) handleDeviceRoutes(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateDevice(w http.ResponseWriter, r *http.Request) {
 	var request struct {
+		TenantID  string            `json:"tenant_id"`
 		Name      string            `json:"name"`
 		ProductID string            `json:"product_id"`
 		Tags      map[string]string `json:"tags"`
@@ -196,10 +200,10 @@ func (s *Server) handleCreateDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	device, err := s.service.CreateDevice(r.Context(), request.Name, request.ProductID, request.Tags, request.Metadata)
+	device, err := s.service.CreateDeviceWithTenant(r.Context(), request.TenantID, request.Name, request.ProductID, request.Tags, request.Metadata)
 	if err != nil {
 		status := http.StatusInternalServerError
-		if errors.Is(err, store.ErrProductNotFound) {
+		if errors.Is(err, store.ErrTenantNotFound) || errors.Is(err, store.ErrProductNotFound) {
 			status = http.StatusNotFound
 		}
 		writeError(w, status, err.Error())
@@ -234,7 +238,8 @@ func (s *Server) handleUpdateDeviceTags(w http.ResponseWriter, r *http.Request, 
 
 func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 	productID := strings.TrimSpace(r.URL.Query().Get("product_id"))
-	devices, err := s.service.ListDevices(r.Context(), productID)
+	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	devices, err := s.service.ListDevicesByTenant(r.Context(), tenantID, productID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -459,11 +464,14 @@ func writePrometheusMetrics(w http.ResponseWriter, stats model.Stats) {
 		fmt.Sprintf("mvp_mqtt_command_acks_total %d", stats.Ingress.MQTTCommandAcks),
 		fmt.Sprintf("mvp_bytes_ingested_total %d", stats.Ingress.BytesIngested),
 		fmt.Sprintf("mvp_telemetry_values_total %d", stats.Ingress.TelemetryValues),
+		fmt.Sprintf("mvp_storage_tenants %d", stats.Storage.Tenants),
 		fmt.Sprintf("mvp_storage_products %d", stats.Storage.Products),
 		fmt.Sprintf("mvp_storage_devices %d", stats.Storage.Devices),
 		fmt.Sprintf("mvp_storage_groups %d", stats.Storage.Groups),
 		fmt.Sprintf("mvp_storage_rules %d", stats.Storage.Rules),
 		fmt.Sprintf("mvp_storage_config_profiles %d", stats.Storage.ConfigProfiles),
+		fmt.Sprintf("mvp_storage_firmware_artifacts %d", stats.Storage.FirmwareArtifacts),
+		fmt.Sprintf("mvp_storage_ota_campaigns %d", stats.Storage.OTACampaigns),
 		fmt.Sprintf("mvp_storage_shadows %d", stats.Storage.Shadows),
 		fmt.Sprintf("mvp_storage_commands %d", stats.Storage.Commands),
 		fmt.Sprintf("mvp_storage_alerts %d", stats.Storage.Alerts),

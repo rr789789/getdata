@@ -45,6 +45,7 @@ func (s *Server) handleConfigProfileRoutes(w http.ResponseWriter, r *http.Reques
 
 func (s *Server) handleCreateConfigProfile(w http.ResponseWriter, r *http.Request) {
 	var request struct {
+		TenantID    string         `json:"tenant_id"`
 		Name        string         `json:"name"`
 		Description string         `json:"description"`
 		ProductID   string         `json:"product_id"`
@@ -56,10 +57,10 @@ func (s *Server) handleCreateConfigProfile(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	profile, err := s.service.CreateConfigProfile(r.Context(), request.Name, request.Description, request.ProductID, request.Values)
+	profile, err := s.service.CreateConfigProfileWithTenant(r.Context(), request.TenantID, request.Name, request.Description, request.ProductID, request.Values)
 	if err != nil {
 		switch {
-		case errors.Is(err, store.ErrProductNotFound):
+		case errors.Is(err, store.ErrTenantNotFound), errors.Is(err, store.ErrProductNotFound):
 			writeError(w, http.StatusNotFound, err.Error())
 		default:
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -71,7 +72,7 @@ func (s *Server) handleCreateConfigProfile(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) handleListConfigProfiles(w http.ResponseWriter, r *http.Request) {
-	profiles, err := s.service.ListConfigProfiles(r.Context())
+	profiles, err := s.service.ListConfigProfilesByTenant(r.Context(), strings.TrimSpace(r.URL.Query().Get("tenant_id")))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

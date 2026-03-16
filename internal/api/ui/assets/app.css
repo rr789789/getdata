@@ -426,6 +426,10 @@ textarea {
   resize: vertical;
 }
 
+.field-hidden {
+  display: none;
+}
+
 input::placeholder,
 textarea::placeholder {
   color: #98a2b3;
@@ -504,6 +508,10 @@ select:focus {
   gap: 10px;
 }
 
+#tenant-selector {
+  min-width: 220px;
+}
+
 .hint {
   color: var(--muted);
   font-size: 13px;
@@ -554,6 +562,11 @@ select:focus {
 .device-card.active {
   background: linear-gradient(135deg, rgba(22, 119, 255, 0.12), rgba(255, 255, 255, 0.96));
   border-color: rgba(22, 119, 255, 0.22);
+}
+
+.detail-card.active {
+  border-color: rgba(22, 119, 255, 0.32);
+  box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.18), var(--shadow-md);
 }
 
 .line {

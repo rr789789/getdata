@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-//go:embed ui/index.html ui/assets/app.css ui/assets/app.js
+//go:embed ui/index.html ui/assets/app.css ui/assets/app.js ui/assets/advanced.js
 var embeddedUI embed.FS
 
 func (s *Server) staticHandler() http.Handler {

@@ -35,8 +35,9 @@ func (s *Server) handleAlerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	alerts, err := s.service.ListAlerts(
+	alerts, err := s.service.ListAlertsByTenant(
 		r.Context(),
+		strings.TrimSpace(r.URL.Query().Get("tenant_id")),
 		parseLimit(r, 50, 500),
 		strings.TrimSpace(r.URL.Query().Get("product_id")),
 		strings.TrimSpace(r.URL.Query().Get("group_id")),
@@ -68,6 +69,7 @@ func (s *Server) handleAlertRoutes(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateRule(w http.ResponseWriter, r *http.Request) {
 	request := struct {
+		TenantID        string              `json:"tenant_id"`
 		Name            string              `json:"name"`
 		Description     string              `json:"description"`
 		ProductID       string              `json:"product_id"`
@@ -77,6 +79,7 @@ func (s *Server) handleCreateRule(w http.ResponseWriter, r *http.Request) {
 		Severity        model.AlertSeverity `json:"severity"`
 		CooldownSeconds int                 `json:"cooldown_seconds"`
 		Condition       model.RuleCondition `json:"condition"`
+		Actions         []model.RuleAction  `json:"actions"`
 	}{
 		Enabled:  true,
 		Severity: model.AlertSeverityWarning,
@@ -87,8 +90,9 @@ func (s *Server) handleCreateRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rule, err := s.service.CreateRule(
+	rule, err := s.service.CreateRuleWithTenant(
 		r.Context(),
+		request.TenantID,
 		request.Name,
 		request.Description,
 		request.ProductID,
@@ -98,6 +102,7 @@ func (s *Server) handleCreateRule(w http.ResponseWriter, r *http.Request) {
 		request.Severity,
 		request.CooldownSeconds,
 		request.Condition,
+		request.Actions,
 	)
 	if err != nil {
 		switch {
@@ -113,7 +118,7 @@ func (s *Server) handleCreateRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListRules(w http.ResponseWriter, r *http.Request) {
-	rules, err := s.service.ListRules(r.Context())
+	rules, err := s.service.ListRulesByTenant(r.Context(), strings.TrimSpace(r.URL.Query().Get("tenant_id")))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

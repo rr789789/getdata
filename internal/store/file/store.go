@@ -165,6 +165,26 @@ func (s *Store) mutate(apply func() error) error {
 	return nil
 }
 
+func (s *Store) CreateTenant(ctx context.Context, tenant model.Tenant) error {
+	return s.mutate(func() error {
+		return s.inner.CreateTenant(ctx, tenant)
+	})
+}
+
+func (s *Store) GetTenant(ctx context.Context, tenantID string) (model.Tenant, error) {
+	return s.inner.GetTenant(ctx, tenantID)
+}
+
+func (s *Store) ListTenants(ctx context.Context) ([]model.Tenant, error) {
+	return s.inner.ListTenants(ctx)
+}
+
+func (s *Store) SaveTenant(ctx context.Context, tenant model.Tenant) error {
+	return s.mutate(func() error {
+		return s.inner.SaveTenant(ctx, tenant)
+	})
+}
+
 func (s *Store) CreateProduct(ctx context.Context, product model.Product) error {
 	return s.mutate(func() error {
 		return s.inner.CreateProduct(ctx, product)
@@ -282,6 +302,46 @@ func (s *Store) ListConfigProfiles(ctx context.Context) ([]model.ConfigProfile, 
 func (s *Store) SaveConfigProfile(ctx context.Context, profile model.ConfigProfile) error {
 	return s.mutate(func() error {
 		return s.inner.SaveConfigProfile(ctx, profile)
+	})
+}
+
+func (s *Store) CreateFirmwareArtifact(ctx context.Context, artifact model.FirmwareArtifact) error {
+	return s.mutate(func() error {
+		return s.inner.CreateFirmwareArtifact(ctx, artifact)
+	})
+}
+
+func (s *Store) GetFirmwareArtifact(ctx context.Context, artifactID string) (model.FirmwareArtifact, error) {
+	return s.inner.GetFirmwareArtifact(ctx, artifactID)
+}
+
+func (s *Store) ListFirmwareArtifacts(ctx context.Context) ([]model.FirmwareArtifact, error) {
+	return s.inner.ListFirmwareArtifacts(ctx)
+}
+
+func (s *Store) SaveFirmwareArtifact(ctx context.Context, artifact model.FirmwareArtifact) error {
+	return s.mutate(func() error {
+		return s.inner.SaveFirmwareArtifact(ctx, artifact)
+	})
+}
+
+func (s *Store) CreateOTACampaign(ctx context.Context, campaign model.OTACampaign) error {
+	return s.mutate(func() error {
+		return s.inner.CreateOTACampaign(ctx, campaign)
+	})
+}
+
+func (s *Store) GetOTACampaign(ctx context.Context, campaignID string) (model.OTACampaign, error) {
+	return s.inner.GetOTACampaign(ctx, campaignID)
+}
+
+func (s *Store) ListOTACampaigns(ctx context.Context) ([]model.OTACampaign, error) {
+	return s.inner.ListOTACampaigns(ctx)
+}
+
+func (s *Store) SaveOTACampaign(ctx context.Context, campaign model.OTACampaign) error {
+	return s.mutate(func() error {
+		return s.inner.SaveOTACampaign(ctx, campaign)
 	})
 }
 

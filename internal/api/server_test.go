@@ -569,6 +569,16 @@ func TestUIEndpoints(t *testing.T) {
 	if assetResp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /assets/app.js status = %d, want %d", assetResp.StatusCode, http.StatusOK)
 	}
+
+	advancedResp, err := http.Get(httpServer.URL + "/assets/advanced.js")
+	if err != nil {
+		t.Fatalf("GET /assets/advanced.js error = %v", err)
+	}
+	defer advancedResp.Body.Close()
+
+	if advancedResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /assets/advanced.js status = %d, want %d", advancedResp.StatusCode, http.StatusOK)
+	}
 }
 
 func TestMetricsEndpoints(t *testing.T) {
@@ -612,6 +622,164 @@ func TestMetricsEndpoints(t *testing.T) {
 	if !strings.Contains(string(body), "mvp_runtime_goroutines") {
 		t.Fatalf("prometheus body missing runtime metric, body=%s", string(body))
 	}
+	if !strings.Contains(string(body), "mvp_storage_tenants") {
+		t.Fatalf("prometheus body missing tenant metric, body=%s", string(body))
+	}
+	if !strings.Contains(string(body), "mvp_storage_ota_campaigns") {
+		t.Fatalf("prometheus body missing ota metric, body=%s", string(body))
+	}
+}
+
+func TestTenantFirmwareAndOTAAPIFlow(t *testing.T) {
+	t.Parallel()
+
+	server, service := newTestServerWithService()
+	httpServer := httptest.NewServer(server.Handler())
+	defer httpServer.Close()
+
+	tenantResp, err := http.Post(httpServer.URL+"/api/v1/tenants", "application/json", bytes.NewReader([]byte(`{"name":"Factory East","slug":"factory-east"}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/tenants error = %v", err)
+	}
+	defer tenantResp.Body.Close()
+
+	if tenantResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(tenantResp.Body)
+		t.Fatalf("POST /api/v1/tenants status = %d, want %d, body=%s", tenantResp.StatusCode, http.StatusCreated, string(body))
+	}
+
+	var tenant model.Tenant
+	if err := json.NewDecoder(tenantResp.Body).Decode(&tenant); err != nil {
+		t.Fatalf("decode tenant error = %v", err)
+	}
+
+	productBody := []byte(`{
+		"tenant_id":"` + tenant.ID + `",
+		"name":"edge-sensor",
+		"thing_model":{
+			"properties":[{"identifier":"temperature","name":"Temperature","data_type":"float"}],
+			"services":[
+				{"identifier":"reboot","name":"Reboot"},
+				{"identifier":"ota_upgrade","name":"OTA Upgrade"}
+			]
+		}
+	}`)
+	productResp, err := http.Post(httpServer.URL+"/api/v1/products", "application/json", bytes.NewReader(productBody))
+	if err != nil {
+		t.Fatalf("POST /api/v1/products error = %v", err)
+	}
+	defer productResp.Body.Close()
+
+	if productResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(productResp.Body)
+		t.Fatalf("POST /api/v1/products status = %d, want %d, body=%s", productResp.StatusCode, http.StatusCreated, string(body))
+	}
+
+	var product model.Product
+	if err := json.NewDecoder(productResp.Body).Decode(&product); err != nil {
+		t.Fatalf("decode product error = %v", err)
+	}
+
+	deviceResp, err := http.Post(httpServer.URL+"/api/v1/devices", "application/json", bytes.NewReader([]byte(`{"tenant_id":"`+tenant.ID+`","name":"edge-01","product_id":"`+product.ID+`"}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/devices error = %v", err)
+	}
+	defer deviceResp.Body.Close()
+
+	if deviceResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(deviceResp.Body)
+		t.Fatalf("POST /api/v1/devices status = %d, want %d, body=%s", deviceResp.StatusCode, http.StatusCreated, string(body))
+	}
+
+	var device model.Device
+	if err := json.NewDecoder(deviceResp.Body).Decode(&device); err != nil {
+		t.Fatalf("decode device error = %v", err)
+	}
+
+	service.RegisterSession(device.ID, &testSession{id: "api-tenant-session"})
+
+	firmwareResp, err := http.Post(httpServer.URL+"/api/v1/firmware", "application/json", bytes.NewReader([]byte(`{
+		"tenant_id":"`+tenant.ID+`",
+		"product_id":"`+product.ID+`",
+		"name":"esp8266",
+		"version":"1.0.0",
+		"file_name":"esp8266.bin",
+		"url":"https://example.com/esp8266.bin"
+	}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/firmware error = %v", err)
+	}
+	defer firmwareResp.Body.Close()
+
+	if firmwareResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(firmwareResp.Body)
+		t.Fatalf("POST /api/v1/firmware status = %d, want %d, body=%s", firmwareResp.StatusCode, http.StatusCreated, string(body))
+	}
+
+	var artifact model.FirmwareArtifact
+	if err := json.NewDecoder(firmwareResp.Body).Decode(&artifact); err != nil {
+		t.Fatalf("decode firmware error = %v", err)
+	}
+
+	otaResp, err := http.Post(httpServer.URL+"/api/v1/ota-campaigns", "application/json", bytes.NewReader([]byte(`{
+		"tenant_id":"`+tenant.ID+`",
+		"name":"east-rollout",
+		"firmware_id":"`+artifact.ID+`",
+		"device_id":"`+device.ID+`"
+	}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/ota-campaigns error = %v", err)
+	}
+	defer otaResp.Body.Close()
+
+	if otaResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(otaResp.Body)
+		t.Fatalf("POST /api/v1/ota-campaigns status = %d, want %d, body=%s", otaResp.StatusCode, http.StatusCreated, string(body))
+	}
+
+	firmwareListResp, err := http.Get(httpServer.URL + "/api/v1/firmware?tenant_id=" + tenant.ID)
+	if err != nil {
+		t.Fatalf("GET /api/v1/firmware error = %v", err)
+	}
+	defer firmwareListResp.Body.Close()
+
+	var firmwareViews []model.FirmwareArtifactView
+	if err := json.NewDecoder(firmwareListResp.Body).Decode(&firmwareViews); err != nil {
+		t.Fatalf("decode firmware list error = %v", err)
+	}
+	if len(firmwareViews) != 1 || firmwareViews[0].Tenant == nil || firmwareViews[0].Tenant.ID != tenant.ID {
+		t.Fatalf("unexpected firmware views: %#v", firmwareViews)
+	}
+
+	otaListResp, err := http.Get(httpServer.URL + "/api/v1/ota-campaigns?tenant_id=" + tenant.ID)
+	if err != nil {
+		t.Fatalf("GET /api/v1/ota-campaigns error = %v", err)
+	}
+	defer otaListResp.Body.Close()
+
+	var otaViews []model.OTACampaignView
+	if err := json.NewDecoder(otaListResp.Body).Decode(&otaViews); err != nil {
+		t.Fatalf("decode ota list error = %v", err)
+	}
+	if len(otaViews) != 1 || otaViews[0].Campaign.DispatchedCount != 1 {
+		t.Fatalf("unexpected ota views: %#v", otaViews)
+	}
+}
+
+type testSession struct {
+	id string
+}
+
+func (s *testSession) SessionID() string {
+	return s.id
+}
+
+func (s *testSession) Send(model.ServerMessage) error {
+	return nil
+}
+
+func (s *testSession) Close() error {
+	return nil
 }
 
 func TestSimulatorAPIFlow(t *testing.T) {
@@ -688,7 +856,7 @@ func newTestServer() *api.Server {
 func newTestServerWithService() (*api.Server, *core.Service) {
 	storage := memory.New(16)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	service := core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, storage, logger)
+	service := core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, logger)
 	simulators := simulator.NewManager(config.Config{GatewayDialAddr: "127.0.0.1:18830"}, service, logger)
 	return api.NewServer(config.Config{GatewayDialAddr: "127.0.0.1:18830"}, service, simulators, logger), service
 }

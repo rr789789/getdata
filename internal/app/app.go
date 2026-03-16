@@ -29,11 +29,14 @@ type App struct {
 }
 
 type appStore interface {
+	store.TenantStore
 	store.ProductStore
 	store.DeviceStore
 	store.GroupStore
 	store.RuleStore
 	store.ConfigStore
+	store.FirmwareStore
+	store.OTACampaignStore
 	store.TelemetryStore
 	store.ShadowStore
 	store.CommandStore
@@ -50,7 +53,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	service := core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, storage, logger.With("component", "core"))
+	service := core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, logger.With("component", "core"))
 	simulators := simulator.NewManager(cfg, service, logger.With("component", "simulator"))
 
 	return &App{

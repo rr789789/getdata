@@ -2,8 +2,36 @@ package model
 
 import "time"
 
+type Tenant struct {
+	ID          string            `json:"id"`
+	Slug        string            `json:"slug"`
+	Name        string            `json:"name"`
+	Description string            `json:"description,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+	CreatedAt   time.Time         `json:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at"`
+}
+
+type TenantSummary struct {
+	ID   string `json:"id"`
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+}
+
+type TenantView struct {
+	Tenant             Tenant `json:"tenant"`
+	ProductCount       int    `json:"product_count"`
+	DeviceCount        int    `json:"device_count"`
+	GroupCount         int    `json:"group_count"`
+	RuleCount          int    `json:"rule_count"`
+	ConfigProfileCount int    `json:"config_profile_count"`
+	FirmwareCount      int    `json:"firmware_count"`
+	OTACampaignCount   int    `json:"ota_campaign_count"`
+}
+
 type Device struct {
 	ID         string            `json:"id"`
+	TenantID   string            `json:"tenant_id,omitempty"`
 	Name       string            `json:"name"`
 	ProductID  string            `json:"product_id,omitempty"`
 	ProductKey string            `json:"product_key,omitempty"`
@@ -34,14 +62,15 @@ const (
 )
 
 type Command struct {
-	ID        string         `json:"id"`
-	DeviceID  string         `json:"device_id"`
-	Name      string         `json:"name"`
-	Params    map[string]any `json:"params,omitempty"`
-	Status    CommandStatus  `json:"status"`
-	Result    string         `json:"result,omitempty"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	ID         string         `json:"id"`
+	DeviceID   string         `json:"device_id"`
+	CampaignID string         `json:"campaign_id,omitempty"`
+	Name       string         `json:"name"`
+	Params     map[string]any `json:"params,omitempty"`
+	Status     CommandStatus  `json:"status"`
+	Result     string         `json:"result,omitempty"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
 }
 
 type ThingModelParameter struct {
@@ -84,15 +113,16 @@ type ThingModel struct {
 }
 
 type Product struct {
-	ID          string            `json:"id"`
-	Key         string            `json:"key"`
-	Name        string            `json:"name"`
-	Description string            `json:"description,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
+	ID            string               `json:"id"`
+	TenantID      string               `json:"tenant_id,omitempty"`
+	Key           string               `json:"key"`
+	Name          string               `json:"name"`
+	Description   string               `json:"description,omitempty"`
+	Metadata      map[string]string    `json:"metadata,omitempty"`
 	AccessProfile ProductAccessProfile `json:"access_profile,omitempty"`
-	ThingModel  ThingModel        `json:"thing_model"`
-	CreatedAt   time.Time         `json:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at"`
+	ThingModel    ThingModel            `json:"thing_model"`
+	CreatedAt     time.Time             `json:"created_at"`
+	UpdatedAt     time.Time             `json:"updated_at"`
 }
 
 type ProductSummary struct {
@@ -102,13 +132,15 @@ type ProductSummary struct {
 }
 
 type ProductView struct {
-	Product     Product `json:"product"`
-	DeviceCount int     `json:"device_count"`
-	OnlineCount int     `json:"online_count"`
+	Product     Product        `json:"product"`
+	Tenant      *TenantSummary `json:"tenant,omitempty"`
+	DeviceCount int            `json:"device_count"`
+	OnlineCount int            `json:"online_count"`
 }
 
 type DeviceGroup struct {
 	ID          string            `json:"id"`
+	TenantID    string            `json:"tenant_id,omitempty"`
 	Name        string            `json:"name"`
 	Description string            `json:"description,omitempty"`
 	ProductID   string            `json:"product_id,omitempty"`
@@ -124,6 +156,7 @@ type GroupSummary struct {
 
 type GroupView struct {
 	Group       DeviceGroup     `json:"group"`
+	Tenant      *TenantSummary  `json:"tenant,omitempty"`
 	Product     *ProductSummary `json:"product,omitempty"`
 	DeviceCount int             `json:"device_count"`
 	OnlineCount int             `json:"online_count"`
@@ -142,6 +175,7 @@ type DeviceShadow struct {
 
 type DeviceView struct {
 	Device      Device          `json:"device"`
+	Tenant      *TenantSummary  `json:"tenant,omitempty"`
 	Product     *ProductSummary `json:"product,omitempty"`
 	Groups      []GroupSummary  `json:"groups,omitempty"`
 	Online      bool            `json:"online"`
@@ -151,6 +185,7 @@ type DeviceView struct {
 
 type ConfigProfile struct {
 	ID            string         `json:"id"`
+	TenantID      string         `json:"tenant_id,omitempty"`
 	Name          string         `json:"name"`
 	Description   string         `json:"description,omitempty"`
 	ProductID     string         `json:"product_id,omitempty"`
@@ -163,6 +198,7 @@ type ConfigProfile struct {
 
 type ConfigProfileView struct {
 	Profile ConfigProfile  `json:"profile"`
+	Tenant  *TenantSummary `json:"tenant,omitempty"`
 	Product *ProductSummary `json:"product,omitempty"`
 }
 
@@ -170,6 +206,23 @@ type RuleCondition struct {
 	Property string `json:"property"`
 	Operator string `json:"operator"`
 	Value    any    `json:"value"`
+}
+
+type RuleActionType string
+
+const (
+	RuleActionAlert       RuleActionType = "alert"
+	RuleActionSendCommand RuleActionType = "send_command"
+	RuleActionApplyConfig RuleActionType = "apply_config_profile"
+)
+
+type RuleAction struct {
+	Type            RuleActionType `json:"type"`
+	Name            string         `json:"name,omitempty"`
+	Params          map[string]any `json:"params,omitempty"`
+	ConfigProfileID string         `json:"config_profile_id,omitempty"`
+	Severity        AlertSeverity  `json:"severity,omitempty"`
+	Message         string         `json:"message,omitempty"`
 }
 
 type AlertSeverity string
@@ -190,6 +243,7 @@ const (
 
 type Rule struct {
 	ID              string        `json:"id"`
+	TenantID        string        `json:"tenant_id,omitempty"`
 	Name            string        `json:"name"`
 	Description     string        `json:"description,omitempty"`
 	ProductID       string        `json:"product_id,omitempty"`
@@ -199,12 +253,14 @@ type Rule struct {
 	Severity        AlertSeverity `json:"severity"`
 	CooldownSeconds int           `json:"cooldown_seconds,omitempty"`
 	Condition       RuleCondition `json:"condition"`
+	Actions         []RuleAction  `json:"actions,omitempty"`
 	CreatedAt       time.Time     `json:"created_at"`
 	UpdatedAt       time.Time     `json:"updated_at"`
 }
 
 type RuleView struct {
 	Rule            Rule            `json:"rule"`
+	Tenant          *TenantSummary  `json:"tenant,omitempty"`
 	Product         *ProductSummary `json:"product,omitempty"`
 	Group           *GroupSummary   `json:"group,omitempty"`
 	Device          *DeviceSummary  `json:"device,omitempty"`
@@ -216,6 +272,7 @@ type AlertEvent struct {
 	ID          string        `json:"id"`
 	RuleID      string        `json:"rule_id"`
 	RuleName    string        `json:"rule_name"`
+	TenantID    string        `json:"tenant_id,omitempty"`
 	ProductID   string        `json:"product_id,omitempty"`
 	GroupID     string        `json:"group_id,omitempty"`
 	DeviceID    string        `json:"device_id"`
@@ -261,11 +318,14 @@ type RuntimeStats struct {
 type StorageStats struct {
 	Backend          string     `json:"backend"`
 	PersistencePath  string     `json:"persistence_path,omitempty"`
+	Tenants          int64      `json:"tenants"`
 	Products         int64      `json:"products"`
 	Devices          int64      `json:"devices"`
 	Groups           int64      `json:"groups"`
 	Rules            int64      `json:"rules"`
 	ConfigProfiles   int64      `json:"config_profiles"`
+	FirmwareArtifacts int64     `json:"firmware_artifacts"`
+	OTACampaigns     int64      `json:"ota_campaigns"`
 	Shadows          int64      `json:"shadows"`
 	Commands         int64      `json:"commands"`
 	Alerts           int64      `json:"alerts"`
@@ -302,6 +362,71 @@ type SimulatorLogEntry struct {
 	Timestamp time.Time `json:"timestamp"`
 	Level     string    `json:"level"`
 	Message   string    `json:"message"`
+}
+
+type FirmwareArtifact struct {
+	ID           string            `json:"id"`
+	TenantID     string            `json:"tenant_id,omitempty"`
+	ProductID    string            `json:"product_id,omitempty"`
+	Name         string            `json:"name"`
+	Version      string            `json:"version"`
+	FileName     string            `json:"file_name,omitempty"`
+	URL          string            `json:"url"`
+	Checksum     string            `json:"checksum,omitempty"`
+	ChecksumType string            `json:"checksum_type,omitempty"`
+	SizeBytes    int64             `json:"size_bytes,omitempty"`
+	Notes        string            `json:"notes,omitempty"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
+	UpdatedAt    time.Time         `json:"updated_at"`
+}
+
+type FirmwareArtifactSummary struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+type FirmwareArtifactView struct {
+	Artifact FirmwareArtifact `json:"artifact"`
+	Tenant   *TenantSummary   `json:"tenant,omitempty"`
+	Product  *ProductSummary  `json:"product,omitempty"`
+}
+
+type OTACampaignStatus string
+
+const (
+	OTACampaignStatusPending   OTACampaignStatus = "pending"
+	OTACampaignStatusRunning   OTACampaignStatus = "running"
+	OTACampaignStatusCompleted OTACampaignStatus = "completed"
+	OTACampaignStatusPartial   OTACampaignStatus = "partial"
+)
+
+type OTACampaign struct {
+	ID               string            `json:"id"`
+	TenantID         string            `json:"tenant_id,omitempty"`
+	Name             string            `json:"name"`
+	FirmwareID       string            `json:"firmware_id"`
+	ProductID        string            `json:"product_id,omitempty"`
+	GroupID          string            `json:"group_id,omitempty"`
+	DeviceID         string            `json:"device_id,omitempty"`
+	Status           OTACampaignStatus `json:"status"`
+	TotalDevices     int               `json:"total_devices"`
+	DispatchedCount  int               `json:"dispatched_count"`
+	AckedCount       int               `json:"acked_count"`
+	FailedCount      int               `json:"failed_count"`
+	LastDispatchedAt *time.Time        `json:"last_dispatched_at,omitempty"`
+	CreatedAt        time.Time         `json:"created_at"`
+	UpdatedAt        time.Time         `json:"updated_at"`
+}
+
+type OTACampaignView struct {
+	Campaign OTACampaign             `json:"campaign"`
+	Tenant   *TenantSummary          `json:"tenant,omitempty"`
+	Product  *ProductSummary         `json:"product,omitempty"`
+	Group    *GroupSummary           `json:"group,omitempty"`
+	Device   *DeviceSummary          `json:"device,omitempty"`
+	Firmware *FirmwareArtifactSummary `json:"firmware,omitempty"`
 }
 
 type SimulatorView struct {

@@ -12,6 +12,8 @@ var (
 	ErrDeviceExists      = errors.New("device already exists")
 	ErrInvalidCredential = errors.New("invalid device credential")
 	ErrCommandNotFound   = errors.New("command not found")
+	ErrTenantNotFound    = errors.New("tenant not found")
+	ErrTenantExists      = errors.New("tenant already exists")
 	ErrProductNotFound   = errors.New("product not found")
 	ErrProductExists     = errors.New("product already exists")
 	ErrGroupNotFound     = errors.New("device group not found")
@@ -20,9 +22,20 @@ var (
 	ErrRuleExists        = errors.New("rule already exists")
 	ErrConfigNotFound    = errors.New("config profile not found")
 	ErrConfigExists      = errors.New("config profile already exists")
+	ErrFirmwareNotFound  = errors.New("firmware artifact not found")
+	ErrFirmwareExists    = errors.New("firmware artifact already exists")
+	ErrOTANotFound       = errors.New("ota campaign not found")
+	ErrOTAExists         = errors.New("ota campaign already exists")
 	ErrAlertNotFound     = errors.New("alert not found")
 	ErrShadowNotFound    = errors.New("device shadow not found")
 )
+
+type TenantStore interface {
+	CreateTenant(ctx context.Context, tenant model.Tenant) error
+	GetTenant(ctx context.Context, tenantID string) (model.Tenant, error)
+	ListTenants(ctx context.Context) ([]model.Tenant, error)
+	SaveTenant(ctx context.Context, tenant model.Tenant) error
+}
 
 type DeviceStore interface {
 	CreateDevice(ctx context.Context, device model.Device) error
@@ -61,6 +74,20 @@ type ConfigStore interface {
 	GetConfigProfile(ctx context.Context, profileID string) (model.ConfigProfile, error)
 	ListConfigProfiles(ctx context.Context) ([]model.ConfigProfile, error)
 	SaveConfigProfile(ctx context.Context, profile model.ConfigProfile) error
+}
+
+type FirmwareStore interface {
+	CreateFirmwareArtifact(ctx context.Context, artifact model.FirmwareArtifact) error
+	GetFirmwareArtifact(ctx context.Context, artifactID string) (model.FirmwareArtifact, error)
+	ListFirmwareArtifacts(ctx context.Context) ([]model.FirmwareArtifact, error)
+	SaveFirmwareArtifact(ctx context.Context, artifact model.FirmwareArtifact) error
+}
+
+type OTACampaignStore interface {
+	CreateOTACampaign(ctx context.Context, campaign model.OTACampaign) error
+	GetOTACampaign(ctx context.Context, campaignID string) (model.OTACampaign, error)
+	ListOTACampaigns(ctx context.Context) ([]model.OTACampaign, error)
+	SaveOTACampaign(ctx context.Context, campaign model.OTACampaign) error
 }
 
 type TelemetryStore interface {

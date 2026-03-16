@@ -420,8 +420,134 @@ func TestAccessProfileFlow(t *testing.T) {
 	}
 }
 
+func TestTenantRuleActionAndOTAFlow(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService()
+	ctx := context.Background()
+
+	tenant, err := service.CreateTenant(ctx, "Factory East", "factory-east", "demo tenant", map[string]string{"region": "cn-east"})
+	if err != nil {
+		t.Fatalf("CreateTenant() error = %v", err)
+	}
+
+	product, err := service.CreateProductWithTenant(ctx, tenant.ID, "edge-sensor", "demo", nil, model.ProductAccessProfile{}, model.ThingModel{
+		Properties: []model.ThingModelProperty{
+			{Identifier: "temperature", Name: "Temperature", DataType: "float"},
+			{Identifier: "target_temp", Name: "Target", DataType: "float"},
+		},
+		Services: []model.ThingModelService{
+			{Identifier: "reboot", Name: "Reboot"},
+			{Identifier: "ota_upgrade", Name: "OTA Upgrade"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateProductWithTenant() error = %v", err)
+	}
+
+	device, err := service.CreateDeviceWithTenant(ctx, "", "edge-01", product.ID, nil, nil)
+	if err != nil {
+		t.Fatalf("CreateDeviceWithTenant() error = %v", err)
+	}
+	if device.TenantID != tenant.ID {
+		t.Fatalf("device tenant id = %q, want %q", device.TenantID, tenant.ID)
+	}
+
+	session := &mockSession{id: "tenant-session"}
+	service.RegisterSession(device.ID, session)
+
+	profile, err := service.CreateConfigProfileWithTenant(ctx, "", "night-mode", "demo profile", product.ID, map[string]any{
+		"target_temp": 21.5,
+	})
+	if err != nil {
+		t.Fatalf("CreateConfigProfileWithTenant() error = %v", err)
+	}
+
+	_, err = service.CreateRuleWithTenant(ctx, tenant.ID, "hot-device", "rule action demo", product.ID, "", device.ID, true, model.AlertSeverityWarning, 0, model.RuleCondition{
+		Property: "temperature",
+		Operator: "gt",
+		Value:    30.0,
+	}, []model.RuleAction{
+		{Type: model.RuleActionSendCommand, Name: "reboot", Params: map[string]any{"delay": 1}},
+		{Type: model.RuleActionApplyConfig, ConfigProfileID: profile.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateRuleWithTenant() error = %v", err)
+	}
+
+	if err := service.HandleTelemetry(ctx, device.ID, time.Now().UTC(), map[string]any{"temperature": 31.2}); err != nil {
+		t.Fatalf("HandleTelemetry() error = %v", err)
+	}
+
+	shadow, err := service.GetShadow(ctx, device.ID)
+	if err != nil {
+		t.Fatalf("GetShadow() error = %v", err)
+	}
+	if got := shadow.Desired["target_temp"]; got != 21.5 {
+		t.Fatalf("shadow desired target_temp = %#v, want 21.5", got)
+	}
+
+	commands, err := service.ListCommands(ctx, device.ID, 10)
+	if err != nil {
+		t.Fatalf("ListCommands() after rule error = %v", err)
+	}
+	if len(commands) != 1 || commands[0].Name != "reboot" {
+		t.Fatalf("unexpected rule action commands: %#v", commands)
+	}
+
+	artifact, err := service.CreateFirmwareArtifact(ctx, tenant.ID, product.ID, "esp8266", "1.0.0", "esp8266.bin", "https://example.com/esp8266.bin", "abc", "sha256", 1024, nil, "stable")
+	if err != nil {
+		t.Fatalf("CreateFirmwareArtifact() error = %v", err)
+	}
+
+	campaign, err := service.CreateOTACampaign(ctx, tenant.ID, "east-rollout", artifact.ID, "", "", device.ID)
+	if err != nil {
+		t.Fatalf("CreateOTACampaign() error = %v", err)
+	}
+	if campaign.Status != model.OTACampaignStatusRunning {
+		t.Fatalf("campaign status = %q, want %q", campaign.Status, model.OTACampaignStatusRunning)
+	}
+
+	commands, err = service.ListCommands(ctx, device.ID, 10)
+	if err != nil {
+		t.Fatalf("ListCommands() after ota error = %v", err)
+	}
+	if len(commands) < 2 || commands[0].Name != "ota_upgrade" {
+		t.Fatalf("expected ota command first, got %#v", commands)
+	}
+	if commands[0].CampaignID != campaign.ID {
+		t.Fatalf("ota command campaign id = %q, want %q", commands[0].CampaignID, campaign.ID)
+	}
+
+	if err := service.HandleCommandAck(ctx, device.ID, commands[0].ID, "ok", "accepted"); err != nil {
+		t.Fatalf("HandleCommandAck() ota error = %v", err)
+	}
+
+	campaigns, err := service.ListOTACampaigns(ctx, tenant.ID)
+	if err != nil {
+		t.Fatalf("ListOTACampaigns() error = %v", err)
+	}
+	if len(campaigns) != 1 {
+		t.Fatalf("campaigns len = %d, want 1", len(campaigns))
+	}
+	if campaigns[0].Campaign.Status != model.OTACampaignStatusCompleted {
+		t.Fatalf("campaign status after ack = %q, want %q", campaigns[0].Campaign.Status, model.OTACampaignStatusCompleted)
+	}
+	if campaigns[0].Campaign.AckedCount != 1 {
+		t.Fatalf("campaign acked count = %d, want 1", campaigns[0].Campaign.AckedCount)
+	}
+
+	products, err := service.ListProductsByTenant(ctx, tenant.ID)
+	if err != nil {
+		t.Fatalf("ListProductsByTenant() error = %v", err)
+	}
+	if len(products) != 1 || products[0].Tenant == nil || products[0].Tenant.ID != tenant.ID {
+		t.Fatalf("unexpected tenant-scoped products: %#v", products)
+	}
+}
+
 func newTestService() *core.Service {
 	storage := memory.New(16)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, storage, logger)
+	return core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, logger)
 }

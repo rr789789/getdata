@@ -12,11 +12,14 @@ import (
 
 type Store struct {
 	mu                 sync.RWMutex
+	tenants            map[string]model.Tenant
 	products           map[string]model.Product
 	devices            map[string]model.Device
 	groups             map[string]model.DeviceGroup
 	rules              map[string]model.Rule
 	configProfiles     map[string]model.ConfigProfile
+	firmwareArtifacts  map[string]model.FirmwareArtifact
+	otaCampaigns       map[string]model.OTACampaign
 	shadows            map[string]model.DeviceShadow
 	telemetryByDevice  map[string][]model.Telemetry
 	commandByID        map[string]model.Command
@@ -34,11 +37,14 @@ func New(telemetryRetention int) *Store {
 	}
 
 	return &Store{
+		tenants:            make(map[string]model.Tenant),
 		products:           make(map[string]model.Product),
 		devices:            make(map[string]model.Device),
 		groups:             make(map[string]model.DeviceGroup),
 		rules:              make(map[string]model.Rule),
 		configProfiles:     make(map[string]model.ConfigProfile),
+		firmwareArtifacts:  make(map[string]model.FirmwareArtifact),
+		otaCampaigns:       make(map[string]model.OTACampaign),
 		shadows:            make(map[string]model.DeviceShadow),
 		telemetryByDevice:  make(map[string][]model.Telemetry),
 		commandByID:        make(map[string]model.Command),
@@ -524,6 +530,7 @@ func (s *Store) ListAlerts(_ context.Context, limit int) ([]model.AlertEvent, er
 func cloneDevice(device model.Device) model.Device {
 	return model.Device{
 		ID:         device.ID,
+		TenantID:   device.TenantID,
 		Name:       device.Name,
 		ProductID:  device.ProductID,
 		ProductKey: device.ProductKey,
@@ -544,28 +551,30 @@ func cloneTelemetry(telemetry model.Telemetry) model.Telemetry {
 
 func cloneCommand(command model.Command) model.Command {
 	return model.Command{
-		ID:        command.ID,
-		DeviceID:  command.DeviceID,
-		Name:      command.Name,
-		Params:    cloneAnyMap(command.Params),
-		Status:    command.Status,
-		Result:    command.Result,
-		CreatedAt: command.CreatedAt,
-		UpdatedAt: command.UpdatedAt,
+		ID:         command.ID,
+		DeviceID:   command.DeviceID,
+		CampaignID: command.CampaignID,
+		Name:       command.Name,
+		Params:     cloneAnyMap(command.Params),
+		Status:     command.Status,
+		Result:     command.Result,
+		CreatedAt:  command.CreatedAt,
+		UpdatedAt:  command.UpdatedAt,
 	}
 }
 
 func cloneProduct(product model.Product) model.Product {
 	return model.Product{
-		ID:          product.ID,
-		Key:         product.Key,
-		Name:        product.Name,
-		Description: product.Description,
-		Metadata:    cloneStringMap(product.Metadata),
+		ID:            product.ID,
+		TenantID:      product.TenantID,
+		Key:           product.Key,
+		Name:          product.Name,
+		Description:   product.Description,
+		Metadata:      cloneStringMap(product.Metadata),
 		AccessProfile: cloneAccessProfile(product.AccessProfile),
-		ThingModel:  cloneThingModel(product.ThingModel),
-		CreatedAt:   product.CreatedAt,
-		UpdatedAt:   product.UpdatedAt,
+		ThingModel:    cloneThingModel(product.ThingModel),
+		CreatedAt:     product.CreatedAt,
+		UpdatedAt:     product.UpdatedAt,
 	}
 }
 
@@ -593,6 +602,7 @@ func cloneAccessProfile(profile model.ProductAccessProfile) model.ProductAccessP
 func cloneGroup(group model.DeviceGroup) model.DeviceGroup {
 	return model.DeviceGroup{
 		ID:          group.ID,
+		TenantID:    group.TenantID,
 		Name:        group.Name,
 		Description: group.Description,
 		ProductID:   group.ProductID,
@@ -603,8 +613,9 @@ func cloneGroup(group model.DeviceGroup) model.DeviceGroup {
 }
 
 func cloneRule(rule model.Rule) model.Rule {
-	return model.Rule{
+	result := model.Rule{
 		ID:              rule.ID,
+		TenantID:        rule.TenantID,
 		Name:            rule.Name,
 		Description:     rule.Description,
 		ProductID:       rule.ProductID,
@@ -621,11 +632,26 @@ func cloneRule(rule model.Rule) model.Rule {
 		CreatedAt: rule.CreatedAt,
 		UpdatedAt: rule.UpdatedAt,
 	}
+	if len(rule.Actions) > 0 {
+		result.Actions = make([]model.RuleAction, 0, len(rule.Actions))
+		for _, action := range rule.Actions {
+			result.Actions = append(result.Actions, model.RuleAction{
+				Type:            action.Type,
+				Name:            action.Name,
+				Params:          cloneAnyMap(action.Params),
+				ConfigProfileID: action.ConfigProfileID,
+				Severity:        action.Severity,
+				Message:         action.Message,
+			})
+		}
+	}
+	return result
 }
 
 func cloneConfigProfile(profile model.ConfigProfile) model.ConfigProfile {
 	result := model.ConfigProfile{
 		ID:           profile.ID,
+		TenantID:     profile.TenantID,
 		Name:         profile.Name,
 		Description:  profile.Description,
 		ProductID:    profile.ProductID,
@@ -708,6 +734,7 @@ func cloneAlert(alert model.AlertEvent) model.AlertEvent {
 		ID:          alert.ID,
 		RuleID:      alert.RuleID,
 		RuleName:    alert.RuleName,
+		TenantID:    alert.TenantID,
 		ProductID:   alert.ProductID,
 		GroupID:     alert.GroupID,
 		DeviceID:    alert.DeviceID,
