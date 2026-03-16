@@ -131,7 +131,6 @@ func TestFileStoreConcurrentMutations(t *testing.T) {
 				Name:      fmt.Sprintf("device-%02d", index),
 				Token:     fmt.Sprintf("token-%02d", index),
 				CreatedAt: time.Now().UTC(),
-				UpdatedAt: time.Now().UTC(),
 			})
 			if err != nil {
 				t.Errorf("CreateDevice(%d) error = %v", index, err)
