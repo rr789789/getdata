@@ -25,6 +25,8 @@
 ## 文档
 
 - 方案计划：[doc/mvp-platform-plan.md](doc/mvp-platform-plan.md)
+- 协议接入手册：[doc/protocol-access-guide.md](doc/protocol-access-guide.md)
+- ESP8266 通用固件：[firmware/esp8266-universal/README.md](firmware/esp8266-universal/README.md)
 
 ## 当前限制
 
@@ -97,6 +99,24 @@ go build -o bin\mvp-platform.exe .\cmd\mvp-platform
 - 在 Simulator Lab 中创建和控制测试设备模拟器
 - 支持控制台中英文切换
 
+## ESP8266 一键接入固件
+
+仓库已经提供通用 ESP8266 固件工程，目录：
+
+- `firmware/esp8266-universal`
+
+特点：
+
+- 同一套固件可切换 `tcp / http / mqtt`
+- 首次启动自动打开配网门户
+- 保存 `device_id / token / host / port / topic`
+- 支持 `BME280 / BH1750 / DS18B20 / DHT11 / DHT22 / A0`
+- 支持本地 OTA 页面
+
+使用说明见：
+
+- [firmware/esp8266-universal/README.md](firmware/esp8266-universal/README.md)
+
 ## 当前接入方式
 
 这一版已经支持两类可直接使用的接入入口：
@@ -120,6 +140,7 @@ go build -o bin\mvp-platform.exe .\cmd\mvp-platform
 - 当前真正内置监听的仍然是 `TCP Gateway` 和 `HTTP Push`
 - `MQTT / Modbus / OPC UA / BACnet / LoRaWAN` 在这一版通过“产品接入配置 + HTTP Push 统一入口”承接桥接数据
 - 可通过 `GET /api/v1/protocol-catalog` 查看内置协议与传感器模板
+- 详细接入说明见 [doc/protocol-access-guide.md](doc/protocol-access-guide.md)
 
 ## 典型 API
 
@@ -352,6 +373,12 @@ curl -X POST http://127.0.0.1:8080/api/v1/devices/<device_id>/commands \
 - 自动执行 `go test ./...`
 - 交叉编译 `linux/windows + amd64/arm64`
 - 上传构建产物到 Actions artifact
+
+另外新增 `.github/workflows/firmware-esp8266.yml`：
+
+- 构建 `nodemcuv2`
+- 构建 `d1_mini`
+- 上传 `esp8266-universal_<board>.bin` 到 Actions artifact
 
 ## 后续建议
 

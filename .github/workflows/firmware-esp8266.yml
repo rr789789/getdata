@@ -1,0 +1,44 @@
+name: firmware-esp8266
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [nodemcuv2, d1_mini]
+
+    defaults:
+      run:
+        working-directory: firmware/esp8266-universal
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build Firmware
+        run: pio run -e ${{ matrix.env }}
+
+      - name: Rename Artifact
+        run: |
+          mkdir -p dist
+          cp ".pio/build/${{ matrix.env }}/firmware.bin" "dist/esp8266-universal_${{ matrix.env }}.bin"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp8266-universal_${{ matrix.env }}
+          path: firmware/esp8266-universal/dist/*.bin
