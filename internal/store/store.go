@@ -17,6 +17,7 @@ var (
 type DeviceStore interface {
 	CreateDevice(ctx context.Context, device model.Device) error
 	GetDevice(ctx context.Context, deviceID string) (model.Device, error)
+	ListDevices(ctx context.Context) ([]model.Device, error)
 }
 
 type TelemetryStore interface {

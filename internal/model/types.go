@@ -52,3 +52,27 @@ type Stats struct {
 	CommandsSent        int64 `json:"commands_sent"`
 	CommandAcks         int64 `json:"command_acks"`
 }
+
+type SimulatorLogEntry struct {
+	Timestamp time.Time `json:"timestamp"`
+	Level     string    `json:"level"`
+	Message   string    `json:"message"`
+}
+
+type SimulatorView struct {
+	ID                  string            `json:"id"`
+	Device              Device            `json:"device"`
+	Connected           bool              `json:"connected"`
+	AutoAck             bool              `json:"auto_ack"`
+	AutoPing            bool              `json:"auto_ping"`
+	AutoTelemetry       bool              `json:"auto_telemetry"`
+	TelemetryIntervalMS int               `json:"telemetry_interval_ms"`
+	DefaultValues       map[string]any    `json:"default_values,omitempty"`
+	LastConnectAt       *time.Time        `json:"last_connect_at,omitempty"`
+	LastDisconnectAt    *time.Time        `json:"last_disconnect_at,omitempty"`
+	LastPingAt          *time.Time        `json:"last_ping_at,omitempty"`
+	LastTelemetryAt     *time.Time        `json:"last_telemetry_at,omitempty"`
+	LastCommandAt       *time.Time        `json:"last_command_at,omitempty"`
+	LastError           string            `json:"last_error,omitempty"`
+	Logs                []SimulatorLogEntry `json:"logs,omitempty"`
+}

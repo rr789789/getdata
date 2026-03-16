@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MVP IoT Console</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <div class="backdrop"></div>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">MVP IoT Platform</p>
+      <h1>设备控制台与模拟器实验台</h1>
+      <p class="copy">同一个可执行文件内完成设备管理、遥测查看、命令下发，以及真实 TCP 接入链路的 UI 设备模拟测试。</p>
+    </div>
+    <div class="runtime-pill">
+      <span id="health-dot" class="dot"></span>
+      <span id="health-text">Loading runtime status</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel span-12">
+      <div class="section-head">
+        <h2>运行概览</h2>
+        <button id="refresh-button" class="button ghost">刷新</button>
+      </div>
+      <div id="stats-grid" class="stats-grid"></div>
+    </section>
+
+    <section class="panel span-4">
+      <div class="section-head">
+        <h2>注册设备</h2>
+      </div>
+      <form id="device-form" class="grid-form">
+        <label>
+          <span>设备名称</span>
+          <input id="device-name" type="text" placeholder="例如 edge-sensor-01">
+        </label>
+        <label class="wide">
+          <span>元数据 JSON</span>
+          <textarea id="device-metadata" rows="4">{"site":"lab","model":"demo-v1"}</textarea>
+        </label>
+        <div class="actions wide">
+          <button class="button primary" type="submit">创建设备</button>
+          <span id="device-status" class="hint"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel span-4">
+      <div class="section-head">
+        <h2>设备列表</h2>
+        <span id="device-count" class="chip">0</span>
+      </div>
+      <div id="device-list" class="stack empty">暂无设备</div>
+    </section>
+
+    <section class="panel span-4">
+      <div class="section-head">
+        <h2>设备详情</h2>
+        <span id="selected-device-name" class="chip">未选择</span>
+      </div>
+      <div id="device-detail" class="stack empty">选择一个设备查看详情。</div>
+    </section>
+
+    <section class="panel span-12">
+      <div class="section-head">
+        <h2>设备模拟器</h2>
+        <span class="chip">真实 TCP 网关</span>
+      </div>
+      <form id="sim-form" class="grid-form">
+        <label>
+          <span>模拟器设备名</span>
+          <input id="sim-name" type="text" placeholder="例如 virtual-meter-01">
+        </label>
+        <label>
+          <span>遥测间隔 ms</span>
+          <input id="sim-interval" type="number" min="1000" step="1000" value="5000">
+        </label>
+        <label class="toggle"><input id="sim-auto-connect" type="checkbox" checked><span>自动连接</span></label>
+        <label class="toggle"><input id="sim-auto-ack" type="checkbox" checked><span>自动回执</span></label>
+        <label class="toggle"><input id="sim-auto-ping" type="checkbox" checked><span>自动心跳</span></label>
+        <label class="toggle"><input id="sim-auto-telemetry" type="checkbox" checked><span>自动遥测</span></label>
+        <label class="wide">
+          <span>默认遥测 JSON</span>
+          <textarea id="sim-values" rows="4">{"temperature":24.2,"humidity":58,"voltage":3.28}</textarea>
+        </label>
+        <label class="wide">
+          <span>元数据 JSON</span>
+          <textarea id="sim-metadata" rows="3">{"site":"virtual-lab","model":"simulator"}</textarea>
+        </label>
+        <div class="actions wide">
+          <button class="button accent" type="submit">创建模拟器</button>
+          <span id="sim-status" class="hint"></span>
+        </div>
+      </form>
+      <div id="sim-list" class="stack empty">暂无模拟器</div>
+    </section>
+  </main>
+
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>

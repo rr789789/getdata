@@ -11,14 +11,16 @@ import (
 	"mvp-platform/internal/config"
 	"mvp-platform/internal/core"
 	"mvp-platform/internal/gateway"
+	"mvp-platform/internal/simulator"
 	"mvp-platform/internal/store/memory"
 )
 
 type App struct {
-	cfg     config.Config
-	logger  *slog.Logger
-	api     *api.Server
-	gateway *gateway.Server
+	cfg        config.Config
+	logger     *slog.Logger
+	api        *api.Server
+	gateway    *gateway.Server
+	simulators *simulator.Manager
 }
 
 func New(cfg config.Config, logger *slog.Logger) *App {
@@ -28,12 +30,14 @@ func New(cfg config.Config, logger *slog.Logger) *App {
 
 	storage := memory.New(cfg.TelemetryRetention)
 	service := core.NewService(storage, storage, storage, logger.With("component", "core"))
+	simulators := simulator.NewManager(cfg, service, logger.With("component", "simulator"))
 
 	return &App{
-		cfg:     cfg,
-		logger:  logger,
-		api:     api.NewServer(cfg, service, logger.With("component", "api")),
-		gateway: gateway.NewServer(cfg, service, logger.With("component", "gateway")),
+		cfg:        cfg,
+		logger:     logger,
+		api:        api.NewServer(cfg, service, simulators, logger.With("component", "api")),
+		gateway:    gateway.NewServer(cfg, service, logger.With("component", "gateway")),
+		simulators: simulators,
 	}
 }
 
@@ -68,6 +72,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	cancel()
+	a.simulators.Close()
 	wg.Wait()
 	return runErr
 }

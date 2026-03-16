@@ -1,0 +1,322 @@
+:root {
+  --bg: #f1ebdf;
+  --panel: rgba(255, 251, 245, 0.86);
+  --border: rgba(20, 32, 43, 0.12);
+  --ink: #15202b;
+  --muted: #5f6b75;
+  --accent: #d15c35;
+  --accent-soft: rgba(209, 92, 53, 0.12);
+  --signal: #17745e;
+  --warning: #8d4d17;
+  --shadow: 0 18px 40px rgba(32, 41, 54, 0.12);
+  --radius: 22px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI Variable", "Bahnschrift", "Trebuchet MS", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(209, 92, 53, 0.18), transparent 24%),
+    linear-gradient(180deg, #faf6ee 0%, var(--bg) 100%);
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(20, 32, 43, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 32, 43, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.5), transparent);
+}
+
+.hero,
+.layout { position: relative; z-index: 1; }
+
+.hero {
+  padding: 30px 24px 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: end;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--warning);
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(32px, 4.8vw, 56px);
+  line-height: 0.95;
+  max-width: 9ch;
+}
+
+.copy {
+  max-width: 700px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 14px 0 0;
+}
+
+.runtime-pill,
+.chip,
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 999px;
+}
+
+.runtime-pill {
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  white-space: nowrap;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 8px rgba(23, 116, 94, 0.1);
+}
+
+.dot.online { background: var(--signal); }
+
+.layout {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 18px;
+  padding: 0 24px 24px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+}
+
+.span-12 { grid-column: span 12; }
+.span-4 { grid-column: span 4; }
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.stats-grid,
+.grid-form,
+.stack,
+.device-detail-grid,
+.sim-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.stats-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
+.stat {
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(160deg, rgba(255,255,255,0.9), rgba(255,246,239,0.9));
+  border: 1px solid rgba(209, 92, 53, 0.12);
+}
+
+.stat span {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.stat strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 30px;
+}
+
+.grid-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.wide { grid-column: 1 / -1; }
+
+label { display: grid; gap: 8px; }
+label span { color: var(--muted); font-size: 13px; }
+
+input, textarea, button {
+  font: inherit;
+}
+
+input, textarea {
+  width: 100%;
+  border: 1px solid rgba(20, 32, 43, 0.12);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--ink);
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+
+textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(20, 32, 43, 0.08);
+  border-radius: 16px;
+}
+
+.toggle input { width: auto; margin: 0; }
+
+.button {
+  border: 0;
+  border-radius: 999px;
+  padding: 11px 16px;
+  cursor: pointer;
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.button:hover { transform: translateY(-1px); }
+.button.primary { background: var(--ink); color: white; }
+.button.accent { background: var(--accent); color: white; }
+.button.ghost { background: rgba(20, 32, 43, 0.08); color: var(--ink); }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.hint { color: var(--muted); font-size: 13px; }
+
+.chip {
+  padding: 7px 12px;
+  font-size: 12px;
+  background: var(--accent-soft);
+  color: var(--warning);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.empty {
+  color: var(--muted);
+  padding: 18px;
+  border: 1px dashed rgba(20, 32, 43, 0.18);
+  border-radius: 18px;
+}
+
+.device-card,
+.detail-card,
+.sim-card {
+  padding: 16px;
+  border: 1px solid rgba(20, 32, 43, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.device-card button {
+  all: unset;
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  cursor: pointer;
+}
+
+.device-card.active {
+  background: linear-gradient(135deg, rgba(209,92,53,0.14), rgba(255,255,255,0.92));
+}
+
+.line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.pill {
+  padding: 8px 12px;
+  font-size: 12px;
+  background: rgba(20, 32, 43, 0.07);
+}
+
+.pill.online {
+  color: var(--signal);
+  background: rgba(23, 116, 94, 0.12);
+}
+
+.pill.offline {
+  color: var(--warning);
+  background: rgba(141, 77, 23, 0.12);
+}
+
+.muted { color: var(--muted); }
+.mono, pre, code { font-family: Consolas, "Cascadia Code", monospace; }
+
+.device-detail-grid,
+.sim-grid {
+  grid-template-columns: 1fr;
+}
+
+pre {
+  margin: 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(20, 32, 43, 0.06);
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sim-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+@media (max-width: 1200px) {
+  .span-4 { grid-column: span 12; }
+}
+
+@media (max-width: 760px) {
+  .hero {
+    flex-direction: column;
+    align-items: start;
+  }
+
+  .grid-form,
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .panel,
+  .span-4,
+  .span-12 {
+    grid-column: span 1;
+  }
+}

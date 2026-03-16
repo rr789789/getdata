@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 type Config struct {
 	HTTPAddr           string
 	GatewayAddr        string
+	GatewayDialAddr    string
 	LogLevel           string
 	ShutdownTimeout    time.Duration
 	DeviceAuthTimeout  time.Duration
@@ -21,9 +23,12 @@ type Config struct {
 }
 
 func Load() Config {
+	gatewayAddr := getEnv("MVP_GATEWAY_ADDR", ":18830")
+
 	return Config{
 		HTTPAddr:           getEnv("MVP_HTTP_ADDR", ":8080"),
-		GatewayAddr:        getEnv("MVP_GATEWAY_ADDR", ":18830"),
+		GatewayAddr:        gatewayAddr,
+		GatewayDialAddr:    getEnv("MVP_GATEWAY_DIAL_ADDR", defaultGatewayDialAddr(gatewayAddr)),
 		LogLevel:           getEnv("MVP_LOG_LEVEL", "info"),
 		ShutdownTimeout:    getEnvDuration("MVP_SHUTDOWN_TIMEOUT", 10*time.Second),
 		DeviceAuthTimeout:  getEnvDuration("MVP_DEVICE_AUTH_TIMEOUT", 15*time.Second),
@@ -67,4 +72,26 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return parsed
+}
+
+func defaultGatewayDialAddr(listenAddr string) string {
+	listenAddr = strings.TrimSpace(listenAddr)
+	if listenAddr == "" {
+		return "127.0.0.1:18830"
+	}
+
+	if strings.HasPrefix(listenAddr, ":") {
+		return "127.0.0.1" + listenAddr
+	}
+
+	host, port, err := net.SplitHostPort(listenAddr)
+	if err != nil {
+		return listenAddr
+	}
+
+	switch host {
+	case "", "0.0.0.0", "::", "[::]":
+		host = "127.0.0.1"
+	}
+	return net.JoinHostPort(host, port)
 }

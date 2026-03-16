@@ -108,6 +108,36 @@ func (s *Service) GetDevice(ctx context.Context, deviceID string) (model.DeviceV
 	return view, nil
 }
 
+func (s *Service) ListDevices(ctx context.Context) ([]model.DeviceView, error) {
+	devices, err := s.devices.ListDevices(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]model.DeviceView, 0, len(devices))
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, device := range devices {
+		state := s.states[device.ID]
+		view := model.DeviceView{
+			Device: device,
+			Online: state.session != nil,
+		}
+		if !state.connectedAt.IsZero() {
+			connectedAt := state.connectedAt
+			view.ConnectedAt = &connectedAt
+		}
+		if !state.lastSeen.IsZero() {
+			lastSeen := state.lastSeen
+			view.LastSeen = &lastSeen
+		}
+		result = append(result, view)
+	}
+
+	return result, nil
+}
+
 func (s *Service) AuthenticateDevice(ctx context.Context, deviceID, token string) (model.Device, error) {
 	device, err := s.devices.GetDevice(ctx, strings.TrimSpace(deviceID))
 	if err != nil {

@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
@@ -53,6 +54,21 @@ func (s *Store) GetDevice(_ context.Context, deviceID string) (model.Device, err
 		return model.Device{}, store.ErrDeviceNotFound
 	}
 	return cloneDevice(device), nil
+}
+
+func (s *Store) ListDevices(_ context.Context) ([]model.Device, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make([]model.Device, 0, len(s.devices))
+	for _, device := range s.devices {
+		result = append(result, cloneDevice(device))
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].CreatedAt.After(result[j].CreatedAt)
+	})
+	return result, nil
 }
 
 func (s *Store) AppendTelemetry(_ context.Context, telemetry model.Telemetry) error {

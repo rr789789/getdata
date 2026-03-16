@@ -4,12 +4,14 @@
 
 ## 当前能力
 
+- 内嵌网页后台
 - HTTP 管理 API
 - TCP 长连接设备网关
 - 设备注册与 token 鉴权
 - 遥测上报
 - 命令下发
 - 命令回执
+- 带 UI 的测试设备模拟器
 - 健康检查与基础指标
 - GitHub Actions 交叉编译 Windows / Linux 二进制
 
@@ -45,12 +47,19 @@ go build -o bin\mvp-platform.exe .\cmd\mvp-platform
 - HTTP API: `:8080`
 - Device Gateway: `:18830`
 
+启动后直接打开：
+
+- 管理台: `http://127.0.0.1:8080/`
+- 健康检查: `http://127.0.0.1:8080/healthz`
+- 运行指标: `http://127.0.0.1:8080/metrics`
+
 ## 配置项
 
 通过环境变量配置：
 
 - `MVP_HTTP_ADDR`，默认 `:8080`
 - `MVP_GATEWAY_ADDR`，默认 `:18830`
+- `MVP_GATEWAY_DIAL_ADDR`，默认从 `MVP_GATEWAY_ADDR` 推导，通常是 `127.0.0.1:18830`
 - `MVP_LOG_LEVEL`，默认 `info`
 - `MVP_SHUTDOWN_TIMEOUT`，默认 `10s`
 - `MVP_DEVICE_AUTH_TIMEOUT`，默认 `15s`
@@ -59,6 +68,38 @@ go build -o bin\mvp-platform.exe .\cmd\mvp-platform
 - `MVP_DEVICE_QUEUE_SIZE`，默认 `128`
 - `MVP_TELEMETRY_RETENTION`，默认 `200`
 - `MVP_MAX_MESSAGE_BYTES`，默认 `1048576`
+
+说明：
+
+- `MVP_GATEWAY_ADDR` 是设备网关监听地址
+- `MVP_GATEWAY_DIAL_ADDR` 是内置模拟器拨号到设备网关时使用的地址
+- 如果你把网关监听到 `0.0.0.0:18830`，内置模拟器通常仍然使用 `127.0.0.1:18830`
+
+## 网页后台
+
+打开 `http://127.0.0.1:8080/` 后，可以直接在页面完成：
+
+- 注册设备
+- 查看设备在线状态
+- 查看最近遥测
+- 下发命令
+- 创建测试模拟器
+- 控制模拟器连接 / 断开 / 手动发遥测
+- 查看模拟器日志
+
+这个管理台是内嵌在同一个 `exe` 里的，不需要单独前端构建。
+
+## 内置模拟器
+
+内置模拟器不是伪造 API 数据，而是由后端真实建立 TCP 连接到设备网关，按平台协议执行：
+
+- `auth`
+- `ping`
+- `telemetry`
+- 自动接收 `command`
+- 自动发送 `ack`
+
+因此它适合用来验证完整的设备接入链路。
 
 ## HTTP API
 
@@ -95,6 +136,12 @@ curl -X POST http://127.0.0.1:8080/api/v1/devices/<device_id>/commands \
 ```bash
 curl http://127.0.0.1:8080/healthz
 curl http://127.0.0.1:8080/metrics
+```
+
+模拟器 API：
+
+```bash
+curl http://127.0.0.1:8080/api/v1/simulators
 ```
 
 ## 设备协议

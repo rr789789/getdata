@@ -13,24 +13,27 @@ import (
 
 	"mvp-platform/internal/config"
 	"mvp-platform/internal/core"
+	"mvp-platform/internal/simulator"
 	"mvp-platform/internal/store"
 )
 
 type Server struct {
-	cfg     config.Config
-	service *core.Service
-	logger  *slog.Logger
+	cfg        config.Config
+	service    *core.Service
+	simulators *simulator.Manager
+	logger     *slog.Logger
 }
 
-func NewServer(cfg config.Config, service *core.Service, logger *slog.Logger) *Server {
+func NewServer(cfg config.Config, service *core.Service, simulators *simulator.Manager, logger *slog.Logger) *Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	return &Server{
-		cfg:     cfg,
-		service: service,
-		logger:  logger,
+		cfg:        cfg,
+		service:    service,
+		simulators: simulators,
+		logger:     logger,
 	}
 }
 
@@ -40,6 +43,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	mux.HandleFunc("/api/v1/devices", s.handleDevices)
 	mux.HandleFunc("/api/v1/devices/", s.handleDeviceRoutes)
+	mux.HandleFunc("/api/v1/simulators", s.handleSimulators)
+	mux.HandleFunc("/api/v1/simulators/", s.handleSimulatorRoutes)
+	mux.Handle("/assets/", s.staticHandler())
+	mux.HandleFunc("/", s.handleIndex)
 	return mux
 }
 
@@ -93,6 +100,8 @@ func (s *Server) handleDevices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch r.Method {
+	case http.MethodGet:
+		s.handleListDevices(w, r)
 	case http.MethodPost:
 		s.handleCreateDevice(w, r)
 	default:
@@ -159,6 +168,16 @@ func (s *Server) handleCreateDevice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, device)
+}
+
+func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
+	devices, err := s.service.ListDevices(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, devices)
 }
 
 func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request, deviceID string) {
