@@ -45,24 +45,31 @@ func (s *Server) handleProductRoutes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if parts[1] != "thing-model" {
+	switch parts[1] {
+	case "thing-model":
+		if r.Method != http.MethodPut {
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		s.handleUpdateThingModel(w, r, productID)
+	case "access-profile":
+		if r.Method != http.MethodPut {
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		s.handleUpdateAccessProfile(w, r, productID)
+	default:
 		writeError(w, http.StatusNotFound, "not found")
-		return
 	}
-
-	if r.Method != http.MethodPut {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-	s.handleUpdateThingModel(w, r, productID)
 }
 
 func (s *Server) handleCreateProduct(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Name        string            `json:"name"`
-		Description string            `json:"description"`
-		Metadata    map[string]string `json:"metadata"`
-		ThingModel  model.ThingModel  `json:"thing_model"`
+		Name          string                    `json:"name"`
+		Description   string                    `json:"description"`
+		Metadata      map[string]string         `json:"metadata"`
+		AccessProfile model.ProductAccessProfile `json:"access_profile"`
+		ThingModel    model.ThingModel          `json:"thing_model"`
 	}
 
 	if err := decodeJSON(r, &request); err != nil {
@@ -70,7 +77,7 @@ func (s *Server) handleCreateProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	product, err := s.service.CreateProduct(r.Context(), request.Name, request.Description, request.Metadata, request.ThingModel)
+	product, err := s.service.CreateProduct(r.Context(), request.Name, request.Description, request.Metadata, request.AccessProfile, request.ThingModel)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -112,6 +119,28 @@ func (s *Server) handleUpdateThingModel(w http.ResponseWriter, r *http.Request, 
 	}
 
 	product, err := s.service.UpdateProductThingModel(r.Context(), productID, request.ThingModel)
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, store.ErrProductNotFound) {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, product)
+}
+
+func (s *Server) handleUpdateAccessProfile(w http.ResponseWriter, r *http.Request, productID string) {
+	var request struct {
+		AccessProfile model.ProductAccessProfile `json:"access_profile"`
+	}
+
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	product, err := s.service.UpdateProductAccessProfile(r.Context(), productID, request.AccessProfile)
 	if err != nil {
 		status := http.StatusBadRequest
 		if errors.Is(err, store.ErrProductNotFound) {

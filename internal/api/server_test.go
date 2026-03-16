@@ -192,6 +192,123 @@ func TestProductAndShadowAPIFlow(t *testing.T) {
 	}
 }
 
+func TestProtocolCatalogAndHTTPIngestFlow(t *testing.T) {
+	t.Parallel()
+
+	server := newTestServer()
+	httpServer := httptest.NewServer(server.Handler())
+	defer httpServer.Close()
+
+	catalogResp, err := http.Get(httpServer.URL + "/api/v1/protocol-catalog")
+	if err != nil {
+		t.Fatalf("GET /api/v1/protocol-catalog error = %v", err)
+	}
+	defer catalogResp.Body.Close()
+
+	if catalogResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/v1/protocol-catalog status = %d, want %d", catalogResp.StatusCode, http.StatusOK)
+	}
+
+	var catalog []model.ProtocolCatalogEntry
+	if err := json.NewDecoder(catalogResp.Body).Decode(&catalog); err != nil {
+		t.Fatalf("decode protocol catalog error = %v", err)
+	}
+	if len(catalog) == 0 {
+		t.Fatal("protocol catalog should not be empty")
+	}
+	seenCatalog := make(map[string]bool, len(catalog))
+	for _, item := range catalog {
+		seenCatalog[item.Protocol] = true
+	}
+	for _, protocol := range []string{"modbus_tcp", "bacnet_ip"} {
+		if !seenCatalog[protocol] {
+			t.Fatalf("protocol catalog missing %s template", protocol)
+		}
+	}
+
+	productBody := []byte(`{
+		"name":"rs485-env",
+		"description":"modbus mapped sensor",
+		"access_profile":{
+			"transport":"rs485",
+			"protocol":"modbus_rtu",
+			"ingest_mode":"http_push",
+			"payload_format":"register_map",
+			"point_mappings":[
+				{"source":"register:40001","property":"temperature","scale":0.1},
+				{"source":"register:40002","property":"humidity","scale":0.1}
+			]
+		},
+		"thing_model":{
+			"properties":[
+				{"identifier":"temperature","name":"Temperature","data_type":"float"},
+				{"identifier":"humidity","name":"Humidity","data_type":"float"}
+			]
+		}
+	}`)
+
+	productResp, err := http.Post(httpServer.URL+"/api/v1/products", "application/json", bytes.NewReader(productBody))
+	if err != nil {
+		t.Fatalf("POST /api/v1/products error = %v", err)
+	}
+	defer productResp.Body.Close()
+
+	if productResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(productResp.Body)
+		t.Fatalf("POST /api/v1/products status = %d, want %d, body=%s", productResp.StatusCode, http.StatusCreated, string(body))
+	}
+
+	var product model.Product
+	if err := json.NewDecoder(productResp.Body).Decode(&product); err != nil {
+		t.Fatalf("decode product error = %v", err)
+	}
+	if product.AccessProfile.Protocol != "modbus_rtu" {
+		t.Fatalf("product access protocol = %q, want modbus_rtu", product.AccessProfile.Protocol)
+	}
+
+	deviceResp, err := http.Post(httpServer.URL+"/api/v1/devices", "application/json", bytes.NewReader([]byte(`{"name":"modbus-device","product_id":"`+product.ID+`"}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/devices error = %v", err)
+	}
+	defer deviceResp.Body.Close()
+
+	var device model.Device
+	if err := json.NewDecoder(deviceResp.Body).Decode(&device); err != nil {
+		t.Fatalf("decode device error = %v", err)
+	}
+
+	ingestResp, err := http.Post(httpServer.URL+"/api/v1/ingest/http/"+device.ID, "application/json", bytes.NewReader([]byte(`{
+		"token":"`+device.Token+`",
+		"registers":{"40001":231,"40002":556}
+	}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/ingest/http/{id} error = %v", err)
+	}
+	defer ingestResp.Body.Close()
+
+	if ingestResp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(ingestResp.Body)
+		t.Fatalf("POST /api/v1/ingest/http/{id} status = %d, want %d, body=%s", ingestResp.StatusCode, http.StatusAccepted, string(body))
+	}
+
+	shadowResp, err := http.Get(httpServer.URL + "/api/v1/devices/" + device.ID + "/shadow")
+	if err != nil {
+		t.Fatalf("GET /shadow error = %v", err)
+	}
+	defer shadowResp.Body.Close()
+
+	var shadow model.DeviceShadow
+	if err := json.NewDecoder(shadowResp.Body).Decode(&shadow); err != nil {
+		t.Fatalf("decode shadow error = %v", err)
+	}
+	if got := shadow.Reported["temperature"]; got != 23.1 {
+		t.Fatalf("reported temperature = %#v, want 23.1", got)
+	}
+	if got := shadow.Reported["humidity"]; got != 55.6 {
+		t.Fatalf("reported humidity = %#v, want 55.6", got)
+	}
+}
+
 func TestGroupAndRuleAPIFlow(t *testing.T) {
 	t.Parallel()
 

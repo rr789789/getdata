@@ -562,10 +562,32 @@ func cloneProduct(product model.Product) model.Product {
 		Name:        product.Name,
 		Description: product.Description,
 		Metadata:    cloneStringMap(product.Metadata),
+		AccessProfile: cloneAccessProfile(product.AccessProfile),
 		ThingModel:  cloneThingModel(product.ThingModel),
 		CreatedAt:   product.CreatedAt,
 		UpdatedAt:   product.UpdatedAt,
 	}
+}
+
+func cloneAccessProfile(profile model.ProductAccessProfile) model.ProductAccessProfile {
+	result := model.ProductAccessProfile{
+		Transport:      profile.Transport,
+		Protocol:       profile.Protocol,
+		IngestMode:     profile.IngestMode,
+		PayloadFormat:  profile.PayloadFormat,
+		AuthMode:       profile.AuthMode,
+		SensorTemplate: profile.SensorTemplate,
+		Topic:          profile.Topic,
+		Notes:          profile.Notes,
+		Metadata:       cloneStringMap(profile.Metadata),
+	}
+	if len(profile.PointMappings) > 0 {
+		result.PointMappings = make([]model.ProtocolPointMapping, 0, len(profile.PointMappings))
+		for _, item := range profile.PointMappings {
+			result.PointMappings = append(result.PointMappings, item)
+		}
+	}
+	return result
 }
 
 func cloneGroup(group model.DeviceGroup) model.DeviceGroup {

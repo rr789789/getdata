@@ -89,6 +89,7 @@ type Product struct {
 	Name        string            `json:"name"`
 	Description string            `json:"description,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
+	AccessProfile ProductAccessProfile `json:"access_profile,omitempty"`
 	ThingModel  ThingModel        `json:"thing_model"`
 	CreatedAt   time.Time         `json:"created_at"`
 	UpdatedAt   time.Time         `json:"updated_at"`

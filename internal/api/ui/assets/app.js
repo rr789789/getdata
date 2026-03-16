@@ -1,13 +1,199 @@
-const VIEW_TITLES = {
-  overview: "Overview",
-  products: "Product Center",
-  devices: "Device Center",
-  governance: "Governance",
-  config: "Config Center",
-  simulator: "Simulator Lab",
+const VIEW_TITLE_KEYS = {
+  overview: "nav_overview",
+  products: "nav_products",
+  devices: "nav_devices",
+  governance: "nav_governance",
+  config: "nav_config",
+  simulator: "nav_simulator",
 };
 
+const I18N = {
+  zh: {
+    app_title: "MVP IoT 控制台",
+    locale_button: "中文 / EN",
+    nav_overview: "总览",
+    nav_products: "产品中心",
+    nav_devices: "设备中心",
+    nav_governance: "治理中心",
+    nav_config: "配置中心",
+    nav_simulator: "模拟器实验室",
+    refresh: "刷新",
+    runtime_loading: "正在加载运行状态",
+    runtime_healthy: "运行正常 | {time}",
+    runtime_unavailable: "运行状态不可用",
+    products_metric: "产品",
+    devices_metric: "设备",
+    online_metric: "在线",
+    groups_metric: "分组",
+    rules_metric: "规则",
+    alerts_metric: "告警",
+    configs_metric: "配置",
+    connections_metric: "连接",
+    telemetry_metric: "遥测",
+    command_ack_metric: "命令回执",
+    no_products: "暂无产品。",
+    no_devices: "暂无设备。",
+    no_groups: "暂无分组。",
+    no_rules: "暂无规则。",
+    no_alerts: "暂无告警。",
+    no_configs: "暂无配置模板。",
+    no_simulators: "暂无模拟器。",
+    no_tags: "暂无标签",
+    no_metadata: "暂无元数据",
+    unbound: "未绑定",
+    any_product: "任意产品",
+    optional: "可选",
+    auto: "自动",
+    online: "在线",
+    offline: "离线",
+    inspect_device: "查看设备",
+    remove_selected_device: "移出当前设备",
+    add_selected_device: "加入当前设备",
+    select_device_membership: "先选择一个设备，再管理分组成员。",
+    status: "状态",
+    updated: "更新时间",
+    all_products: "全部产品",
+    select_device_apply: "先选择一个设备再下发。",
+    product_scope_mismatch: "当前设备产品与该模板不匹配。",
+    apply_selected_device: "应用到当前设备",
+    selected_device_none: "未选择",
+    selected_device_empty: "选择一个设备以查看标签、影子、命令和告警。",
+    command_accepted: "命令已接受",
+    created_ok: "创建成功",
+    shadow_updated: "影子已更新",
+    tags_updated: "标签已更新",
+    config_applied: "配置已下发",
+    select_profile_first: "请先选择配置模板",
+    processing_note: "处理备注",
+    create_in_progress: "创建中...",
+    update_in_progress: "更新中...",
+    send_in_progress: "发送中...",
+    apply_in_progress: "应用中...",
+    acknowledged: "已确认",
+    resolved: "已关闭",
+    latest_alerts: "最新告警",
+    recent_devices: "最近设备",
+    protocol_templates_loading: "正在加载协议模板...",
+    protocol_templates_empty: "暂无协议模板。",
+    protocol_templates_title: "协议与传感器模板",
+    protocol_templates_desc: "常见传感器协议模板可直接作为产品接入配置起点。",
+    apply_template: "应用模板",
+    connect: "连接",
+    disconnect: "断开",
+    remove: "移除",
+    send_telemetry: "发送遥测",
+    protocol_template: "协议模板",
+    sensor_template: "传感器模板",
+    common_sensors: "常见传感器",
+    example_payload: "示例载荷",
+    point_mappings: "点位映射",
+    transport: "传输",
+    protocol: "协议",
+    ingest_mode: "接入方式",
+    payload_format: "载荷格式",
+    auth_mode: "鉴权方式",
+    topic_path: "主题 / 路径",
+    no_logs: "暂无日志。",
+  },
+  en: {
+    app_title: "MVP IoT Console",
+    locale_button: "中文 / EN",
+    nav_overview: "Overview",
+    nav_products: "Product Center",
+    nav_devices: "Device Center",
+    nav_governance: "Governance",
+    nav_config: "Config Center",
+    nav_simulator: "Simulator Lab",
+    refresh: "Refresh",
+    runtime_loading: "Loading runtime status",
+    runtime_healthy: "Runtime healthy | {time}",
+    runtime_unavailable: "Runtime unavailable",
+    products_metric: "Products",
+    devices_metric: "Devices",
+    online_metric: "Online",
+    groups_metric: "Groups",
+    rules_metric: "Rules",
+    alerts_metric: "Alerts",
+    configs_metric: "Configs",
+    connections_metric: "Connections",
+    telemetry_metric: "Telemetry",
+    command_ack_metric: "Command Ack",
+    no_products: "No products yet.",
+    no_devices: "No devices yet.",
+    no_groups: "No groups yet.",
+    no_rules: "No rules yet.",
+    no_alerts: "No alerts yet.",
+    no_configs: "No config profiles yet.",
+    no_simulators: "No simulators yet.",
+    no_tags: "No tags",
+    no_metadata: "No metadata",
+    unbound: "Unbound",
+    any_product: "Any product",
+    optional: "Optional",
+    auto: "Auto",
+    online: "online",
+    offline: "offline",
+    inspect_device: "Inspect Device",
+    remove_selected_device: "Remove selected device",
+    add_selected_device: "Add selected device",
+    select_device_membership: "Select a device to manage membership.",
+    status: "Status",
+    updated: "Updated",
+    all_products: "All products",
+    select_device_apply: "Select a device to apply.",
+    product_scope_mismatch: "Selected device product does not match this profile.",
+    apply_selected_device: "Apply To Selected Device",
+    selected_device_none: "Unselected",
+    selected_device_empty: "Select a device to inspect tags, shadow, commands and alerts.",
+    command_accepted: "Command accepted",
+    created_ok: "Created",
+    shadow_updated: "Shadow updated",
+    tags_updated: "Tags updated",
+    config_applied: "Config applied",
+    select_profile_first: "Select a config profile first",
+    processing_note: "Processing note",
+    create_in_progress: "Creating...",
+    update_in_progress: "Updating...",
+    send_in_progress: "Sending...",
+    apply_in_progress: "Applying...",
+    acknowledged: "Acknowledged",
+    resolved: "Resolved",
+    latest_alerts: "Latest Alerts",
+    recent_devices: "Recent Devices",
+    protocol_templates_loading: "Loading protocol catalog...",
+    protocol_templates_empty: "No protocol templates.",
+    protocol_templates_title: "Protocol And Sensor Templates",
+    protocol_templates_desc: "Use common sensor protocol templates as a starting point for product access profiles.",
+    apply_template: "Apply Template",
+    connect: "Connect",
+    disconnect: "Disconnect",
+    remove: "Remove",
+    send_telemetry: "Send Telemetry",
+    protocol_template: "Protocol Template",
+    sensor_template: "Sensor Template",
+    common_sensors: "Common Sensors",
+    example_payload: "Example Payload",
+    point_mappings: "Point Mappings",
+    transport: "Transport",
+    protocol: "Protocol",
+    ingest_mode: "Ingest Mode",
+    payload_format: "Payload Format",
+    auth_mode: "Auth Mode",
+    topic_path: "Topic / Path",
+    no_logs: "No logs yet.",
+  },
+};
+
+function resolveInitialLocale() {
+  const saved = window.localStorage.getItem("mvp_locale");
+  if (saved === "zh" || saved === "en") {
+    return saved;
+  }
+  return navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
+}
+
 const appState = {
+  locale: resolveInitialLocale(),
   currentView: "overview",
   health: null,
   metrics: null,
@@ -17,9 +203,20 @@ const appState = {
   rules: [],
   alerts: [],
   configProfiles: [],
+  protocolCatalog: [],
   simulators: [],
   selectedDeviceId: "",
 };
+
+function t(key, variables = {}) {
+  const localeTable = I18N[appState.locale] || I18N.en;
+  const fallback = I18N.en[key] || key;
+  let template = localeTable[key] || fallback;
+  for (const [name, value] of Object.entries(variables)) {
+    template = template.replaceAll(`{${name}}`, String(value));
+  }
+  return template;
+}
 
 async function requestJSON(path, options = {}) {
   const response = await fetch(path, {
@@ -74,7 +271,7 @@ function escapeHTML(value) {
 }
 
 function formatTime(value) {
-  return value ? new Date(value).toLocaleString("zh-CN") : "-";
+  return value ? new Date(value).toLocaleString(appState.locale === "zh" ? "zh-CN" : "en-US") : "-";
 }
 
 function formatValue(value) {
@@ -104,6 +301,133 @@ function setHint(id, message, isError = false) {
   }
   node.textContent = message || "";
   node.style.color = isError ? "#b42318" : "";
+}
+
+function setText(selector, value) {
+  const node = typeof selector === "string" ? document.querySelector(selector) : selector;
+  if (node) {
+    node.textContent = value;
+  }
+}
+
+function setPlaceholder(id, value) {
+  const node = document.getElementById(id);
+  if (node) {
+    node.placeholder = value;
+  }
+}
+
+function applyTranslations() {
+  document.documentElement.lang = appState.locale === "zh" ? "zh-CN" : "en";
+  document.title = t("app_title");
+
+  setText("#locale-toggle", t("locale_button"));
+  setText("#refresh-button", t("refresh"));
+  setText("#health-text", appState.health?.status === "ok" ? t("runtime_healthy", { time: formatTime(appState.health.time) }) : t("runtime_loading"));
+
+  const viewTitle = document.getElementById("view-title");
+  if (viewTitle) {
+    viewTitle.textContent = t(VIEW_TITLE_KEYS[appState.currentView] || "nav_overview");
+  }
+
+  [
+    ["[data-view-target=\"overview\"]", "nav_overview"],
+    ["[data-view-target=\"products\"]", "nav_products"],
+    ["[data-view-target=\"devices\"]", "nav_devices"],
+    ["[data-view-target=\"governance\"]", "nav_governance"],
+    ["[data-view-target=\"config\"]", "nav_config"],
+    ["[data-view-target=\"simulator\"]", "nav_simulator"],
+  ].forEach(([selector, key]) => setText(selector, t(key)));
+
+  setText(".brand-block .subtle", appState.locale === "zh"
+    ? "单二进制控制面，覆盖产品建模、设备接入、规则告警和模拟器联调。"
+    : "Single binary control plane for product, fleet, rules and simulator workflows.");
+  setText(".console-topbar .eyebrow", appState.locale === "zh" ? "设备云平台" : "Device Cloud Platform");
+  setText(".hero-kicker", appState.locale === "zh" ? "企业级运维控制台" : "Enterprise operation console");
+  setText(".hero-copy h3", appState.locale === "zh"
+    ? "产品建模、设备治理、协议接入与模拟测试集中管理"
+    : "Product modeling, fleet governance, protocol onboarding and simulator testing in one place");
+  setText(".hero-copy .copy", appState.locale === "zh"
+    ? "控制台参考企业物联网平台布局，补充了多协议产品接入配置、HTTP Push 接入和常见传感器协议模板。"
+    : "This console follows an enterprise IoT control-plane style and now adds multi-protocol access profiles, HTTP push ingest and common sensor protocol templates.");
+  setText(".hero-glance .glance-card:nth-of-type(1) .glance-label", appState.locale === "zh" ? "控制面" : "Control Plane");
+  setText(".hero-glance .glance-card:nth-of-type(1) strong", appState.locale === "zh" ? "产品 / 设备 / 规则 / 协议" : "Product / Device / Rule / Access");
+  setText(".hero-glance .glance-card:nth-of-type(1) small", appState.locale === "zh"
+    ? "统一管理物模型、设备分组、告警生命周期、配置模板和接入协议。"
+    : "Manage thing models, groups, alert lifecycle, config profiles and access protocols.");
+  setText(".hero-glance .glance-card:nth-of-type(2) .glance-label", appState.locale === "zh" ? "接入链路" : "Gateway Path");
+  setText(".hero-glance .glance-card:nth-of-type(2) strong", appState.locale === "zh" ? "TCP / HTTP Push / Bridge" : "TCP / HTTP Push / Bridge");
+  setText(".hero-glance .glance-card:nth-of-type(2) small", appState.locale === "zh"
+    ? "内置 TCP 网关继续可用，并新增 HTTP Push 统一接入端点承接 Modbus、MQTT、OPC UA 等桥接数据。"
+    : "The built-in TCP gateway remains available, and HTTP push ingest can accept bridge-forwarded Modbus, MQTT and OPC UA data.");
+  setText(".panel-overview .section-kicker", appState.locale === "zh" ? "运行态" : "Runtime");
+  setText(".panel-overview .section-head h3", appState.locale === "zh" ? "核心指标" : "Overview Metrics");
+  const overviewDevicePanel = document.getElementById("overview-device-list")?.closest(".panel");
+  const overviewAlertPanel = document.getElementById("overview-alert-list")?.closest(".panel");
+  const protocolPanel = document.getElementById("protocol-catalog-list")?.closest(".panel");
+  setText(overviewDevicePanel?.querySelector(".section-kicker"), appState.locale === "zh" ? "设备队列" : "Fleet");
+  setText(overviewDevicePanel?.querySelector(".section-head h3"), t("recent_devices"));
+  setText(overviewAlertPanel?.querySelector(".section-kicker"), appState.locale === "zh" ? "告警" : "Alert");
+  setText(overviewAlertPanel?.querySelector(".section-head h3"), t("latest_alerts"));
+  setText("[data-view=\"products\"] .section-kicker", appState.locale === "zh" ? "产品" : "Product");
+  setText("[data-view=\"products\"] .section-head h3", appState.locale === "zh" ? "产品与接入模型" : "Product And Access Model");
+  setText(protocolPanel?.querySelector(".section-kicker"), appState.locale === "zh" ? "协议" : "Protocol");
+  setText(protocolPanel?.querySelector(".section-head h3"), t("protocol_templates_title"));
+  setText("#product-form label:nth-of-type(1) span", appState.locale === "zh" ? "产品名称" : "Product Name");
+  setText("#product-form label:nth-of-type(2) span", appState.locale === "zh" ? "描述" : "Description");
+  setText("#product-form label:nth-of-type(3) span", appState.locale === "zh" ? "传输" : "Transport");
+  setText("#product-form label:nth-of-type(4) span", appState.locale === "zh" ? "协议" : "Protocol");
+  setText("#product-form label:nth-of-type(5) span", appState.locale === "zh" ? "接入方式" : "Ingest Mode");
+  setText("#product-form label:nth-of-type(6) span", appState.locale === "zh" ? "载荷格式" : "Payload Format");
+  setText("#product-form label:nth-of-type(7) span", appState.locale === "zh" ? "传感器模板" : "Sensor Template");
+  setText("#product-form label:nth-of-type(8) span", appState.locale === "zh" ? "鉴权方式" : "Auth Mode");
+  setText("#product-form label:nth-of-type(9) span", appState.locale === "zh" ? "主题 / 路径" : "Topic / Path");
+  setText("#product-form label:nth-of-type(10) span", appState.locale === "zh" ? "元数据 JSON" : "Metadata JSON");
+  setText("#product-form label:nth-of-type(11) span", appState.locale === "zh" ? "点位映射 JSON" : "Point Mappings JSON");
+  setText("#product-form label:nth-of-type(12) span", appState.locale === "zh" ? "物模型 JSON" : "Thing Model JSON");
+  setText("#product-form button[type=\"submit\"]", appState.locale === "zh" ? "创建产品" : "Create Product");
+
+  setText("[data-view=\"devices\"] .overview-grid .panel:nth-of-type(1) .section-kicker", appState.locale === "zh" ? "创建设备" : "Provision");
+  setText("[data-view=\"devices\"] .overview-grid .panel:nth-of-type(1) .section-head h3", appState.locale === "zh" ? "新增设备" : "Create Device");
+  setText("#device-form label:nth-of-type(1) span", appState.locale === "zh" ? "设备名称" : "Device Name");
+  setText("#device-form label:nth-of-type(2) span", appState.locale === "zh" ? "所属产品" : "Product");
+  setText("#device-form label:nth-of-type(3) span", appState.locale === "zh" ? "标签 JSON" : "Tags JSON");
+  setText("#device-form label:nth-of-type(4) span", appState.locale === "zh" ? "元数据 JSON" : "Metadata JSON");
+  setText("#device-form button[type=\"submit\"]", appState.locale === "zh" ? "创建设备" : "Create Device");
+  setText("[data-view=\"devices\"] .overview-grid .panel:nth-of-type(2) .section-kicker", appState.locale === "zh" ? "设备" : "Fleet");
+  setText("[data-view=\"devices\"] .overview-grid .panel:nth-of-type(2) .section-head h3", appState.locale === "zh" ? "设备列表" : "Device List");
+  setText("[data-view=\"devices\"] > .panel .section-kicker", appState.locale === "zh" ? "详情" : "Detail");
+  setText("[data-view=\"devices\"] > .panel .section-head h3", appState.locale === "zh" ? "当前设备" : "Selected Device");
+
+  setText("[data-view=\"config\"] .section-kicker", appState.locale === "zh" ? "配置" : "Config");
+  setText("[data-view=\"config\"] .section-head h3", appState.locale === "zh" ? "远程配置模板" : "Remote Config Profiles");
+  setText("#config-form label:nth-of-type(1) span", appState.locale === "zh" ? "模板名称" : "Profile Name");
+  setText("#config-form label:nth-of-type(2) span", appState.locale === "zh" ? "产品" : "Product");
+  setText("#config-form label:nth-of-type(3) span", appState.locale === "zh" ? "描述" : "Description");
+  setText("#config-form label:nth-of-type(4) span", appState.locale === "zh" ? "配置值 JSON" : "Values JSON");
+  setText("#config-form button[type=\"submit\"]", appState.locale === "zh" ? "创建配置模板" : "Create Config Profile");
+
+  setText("[data-view=\"simulator\"] .section-kicker", appState.locale === "zh" ? "模拟器" : "Simulator");
+  setText("[data-view=\"simulator\"] .section-head h3", appState.locale === "zh" ? "设备模拟器" : "Device Simulator");
+  setText("#sim-form label:nth-of-type(1) span", appState.locale === "zh" ? "模拟器设备名" : "Simulator Device Name");
+  setText("#sim-form label:nth-of-type(2) span", appState.locale === "zh" ? "遥测间隔 ms" : "Telemetry Interval ms");
+  setText("#sim-form label:nth-of-type(3) span", appState.locale === "zh" ? "产品" : "Product");
+  setText("#sim-form label:nth-of-type(8) span", appState.locale === "zh" ? "默认遥测 JSON" : "Default Telemetry JSON");
+  setText("#sim-form label:nth-of-type(9) span", appState.locale === "zh" ? "元数据 JSON" : "Metadata JSON");
+  setText("#sim-form button[type=\"submit\"]", appState.locale === "zh" ? "创建模拟器" : "Create Simulator");
+
+  setPlaceholder("product-name", appState.locale === "zh" ? "温湿度传感器产品" : "thermostat-product");
+  setPlaceholder("product-description", appState.locale === "zh" ? "智能传感器产品" : "Smart sensor product");
+  setPlaceholder("product-topic", appState.locale === "zh" ? "factory/+/sensor/+/up" : "factory/+/sensor/+/up");
+  setPlaceholder("device-name", appState.locale === "zh" ? "边缘传感器-01" : "edge-sensor-01");
+  setPlaceholder("group-name", appState.locale === "zh" ? "产线-A" : "line-a");
+  setPlaceholder("group-description", appState.locale === "zh" ? "装配线 A" : "Assembly line A");
+  setPlaceholder("rule-name", appState.locale === "zh" ? "温度过高" : "temperature-high");
+  setPlaceholder("rule-property", appState.locale === "zh" ? "temperature" : "temperature");
+  setPlaceholder("rule-description", appState.locale === "zh" ? "温度大于 30 时告警" : "Alert when temperature is higher than 30");
+  setPlaceholder("config-name", appState.locale === "zh" ? "夜间模式" : "night-mode");
+  setPlaceholder("config-description", appState.locale === "zh" ? "可复用的远程配置模板" : "Reusable desired-shadow template");
+  setPlaceholder("sim-name", appState.locale === "zh" ? "虚拟电表-01" : "virtual-meter-01");
 }
 
 function getProduct(productId) {
@@ -162,7 +486,7 @@ function renderHealth(health) {
 
   const healthy = health?.status === "ok";
   dot.classList.toggle("online", healthy);
-  text.textContent = healthy ? `Runtime healthy | ${formatTime(health.time)}` : "Runtime unavailable";
+  text.textContent = healthy ? t("runtime_healthy", { time: formatTime(health.time) }) : t("runtime_unavailable");
 }
 
 function renderStats(metrics) {
@@ -172,16 +496,16 @@ function renderStats(metrics) {
   }
 
   const cards = [
-    ["Products", appState.products.length],
-    ["Devices", metrics?.registered_devices || 0],
-    ["Online", metrics?.online_devices || 0],
-    ["Groups", appState.groups.length],
-    ["Rules", appState.rules.length],
-    ["Alerts", appState.alerts.length],
-    ["Configs", appState.configProfiles.length],
-    ["Connections", metrics?.total_connections || 0],
-    ["Telemetry", metrics?.telemetry_received || 0],
-    ["Command Ack", metrics?.command_acks || 0],
+    [t("products_metric"), appState.products.length],
+    [t("devices_metric"), metrics?.registered_devices || 0],
+    [t("online_metric"), metrics?.online_devices || 0],
+    [t("groups_metric"), appState.groups.length],
+    [t("rules_metric"), appState.rules.length],
+    [t("alerts_metric"), appState.alerts.length],
+    [t("configs_metric"), appState.configProfiles.length],
+    [t("connections_metric"), metrics?.total_connections || 0],
+    [t("telemetry_metric"), metrics?.telemetry_received || 0],
+    [t("command_ack_metric"), metrics?.command_acks || 0],
   ];
 
   container.innerHTML = cards.map(([name, value]) => `
@@ -208,7 +532,7 @@ function renderOverview() {
 
   if (recentDevices.length === 0) {
     deviceContainer.className = "stack empty";
-    deviceContainer.textContent = "No devices yet.";
+    deviceContainer.textContent = t("no_devices");
   } else {
     deviceContainer.className = "stack";
     deviceContainer.innerHTML = recentDevices.map((item) => `
@@ -218,14 +542,14 @@ function renderOverview() {
             <strong>${escapeHTML(item.device.name)}</strong>
             <div class="muted mono">${escapeHTML(item.device.id)}</div>
           </div>
-          <span class="pill ${item.online ? "online" : "offline"}">${item.online ? "online" : "offline"}</span>
+          <span class="pill ${item.online ? "online" : "offline"}">${item.online ? t("online") : t("offline")}</span>
         </div>
         <div class="mini-list">
-          ${item.product ? `<span class="tag">${escapeHTML(item.product.name)}</span>` : '<span class="tag">Unbound</span>'}
+          ${item.product ? `<span class="tag">${escapeHTML(item.product.name)}</span>` : `<span class="tag">${escapeHTML(t("unbound"))}</span>`}
           ${(item.groups || []).map((group) => `<span class="tag">${escapeHTML(group.name)}</span>`).join("")}
         </div>
         <div class="list-actions">
-          <button class="button ghost" type="button" data-overview-device="${item.device.id}">Inspect Device</button>
+          <button class="button ghost" type="button" data-overview-device="${item.device.id}">${escapeHTML(t("inspect_device"))}</button>
         </div>
       </article>
     `).join("");
@@ -248,7 +572,7 @@ function renderOverview() {
 
   if (latestAlerts.length === 0) {
     alertContainer.className = "stack empty";
-    alertContainer.textContent = "No alerts yet.";
+    alertContainer.textContent = t("no_alerts");
   } else {
     alertContainer.className = "stack";
     alertContainer.innerHTML = latestAlerts.map((item) => `
@@ -292,13 +616,13 @@ function syncFormOptions() {
     value: item.product.id,
     label: `${item.product.name} | ${item.product.key}`,
   }));
-  syncSelect("device-product-id", productOptions, "Unbound");
-  syncSelect("sim-product-id", productOptions, "Unbound");
-  syncSelect("group-product-id", productOptions, "Any product");
-  syncSelect("rule-product-id", productOptions, "Auto");
-  syncSelect("config-product-id", productOptions, "Optional");
-  syncSelect("rule-group-id", appState.groups.map((item) => ({ value: item.group.id, label: item.group.name })), "Optional");
-  syncSelect("rule-device-id", appState.devices.map((item) => ({ value: item.device.id, label: item.device.name })), "Optional");
+  syncSelect("device-product-id", productOptions, t("unbound"));
+  syncSelect("sim-product-id", productOptions, t("unbound"));
+  syncSelect("group-product-id", productOptions, t("any_product"));
+  syncSelect("rule-product-id", productOptions, t("auto"));
+  syncSelect("config-product-id", productOptions, t("optional"));
+  syncSelect("rule-group-id", appState.groups.map((item) => ({ value: item.group.id, label: item.group.name })), t("optional"));
+  syncSelect("rule-device-id", appState.devices.map((item) => ({ value: item.device.id, label: item.device.name })), t("optional"));
 }
 
 function renderProducts() {
@@ -306,7 +630,7 @@ function renderProducts() {
   document.getElementById("product-count").textContent = `${appState.products.length}`;
   if (appState.products.length === 0) {
     container.className = "stack empty";
-    container.textContent = "No products yet.";
+    container.textContent = t("no_products");
     return;
   }
 
@@ -322,15 +646,61 @@ function renderProducts() {
         <span class="chip">${item.device_count} devices</span>
       </div>
       <div class="detail-meta-grid">
-        <div class="meta-tile"><span>Online</span><strong>${item.online_count}</strong></div>
+        <div class="meta-tile"><span>${escapeHTML(t("online_metric"))}</span><strong>${item.online_count}</strong></div>
         <div class="meta-tile"><span>Properties</span><strong>${(item.product.thing_model.properties || []).length}</strong></div>
         <div class="meta-tile"><span>Services</span><strong>${(item.product.thing_model.services || []).length}</strong></div>
         <div class="meta-tile"><span>Version</span><strong>${item.product.thing_model.version || 0}</strong></div>
       </div>
-      <div class="tag-list">${renderKVTags(item.product.metadata, "No metadata")}</div>
+      <div class="mini-list">
+        <span class="tag">${escapeHTML(t("transport"))} ${escapeHTML(item.product.access_profile?.transport || "tcp")}</span>
+        <span class="tag">${escapeHTML(t("protocol"))} ${escapeHTML(item.product.access_profile?.protocol || "tcp_json")}</span>
+        <span class="tag">${escapeHTML(t("ingest_mode"))} ${escapeHTML(item.product.access_profile?.ingest_mode || "gateway_tcp")}</span>
+        <span class="tag">${escapeHTML(t("payload_format"))} ${escapeHTML(item.product.access_profile?.payload_format || "json_values")}</span>
+      </div>
+      <div class="tag-list">${renderKVTags(item.product.metadata, t("no_metadata"))}</div>
       <pre>${escapeHTML(pretty(item.product.thing_model))}</pre>
     </article>
   `).join("");
+}
+
+function renderProtocolCatalog() {
+  const container = document.getElementById("protocol-catalog-list");
+  if (!container) {
+    return;
+  }
+
+  if (appState.protocolCatalog.length === 0) {
+    container.className = "stack empty";
+    container.textContent = t("protocol_templates_empty");
+    return;
+  }
+
+  container.className = "stack";
+  container.innerHTML = appState.protocolCatalog.map((entry) => `
+    <article class="detail-card">
+      <div class="line">
+        <div>
+          <strong>${escapeHTML(entry.name)}</strong>
+          <div class="muted">${escapeHTML(entry.description)}</div>
+        </div>
+        <button class="button ghost" type="button" data-apply-protocol-template="${entry.id}">${escapeHTML(t("apply_template"))}</button>
+      </div>
+      <div class="mini-list">
+        <span class="tag">${escapeHTML(t("transport"))} ${escapeHTML(entry.transport)}</span>
+        <span class="tag">${escapeHTML(t("protocol"))} ${escapeHTML(entry.protocol)}</span>
+        <span class="tag">${escapeHTML(t("ingest_mode"))} ${escapeHTML(entry.ingest_mode)}</span>
+        <span class="tag">${escapeHTML(t("payload_format"))} ${escapeHTML(entry.payload_format)}</span>
+      </div>
+      <div class="tag-list">
+        ${(entry.common_sensors || []).map((sensor) => `<span class="tag">${escapeHTML(sensor)}</span>`).join("")}
+      </div>
+      <pre>${escapeHTML(pretty(entry.example_payload || {}))}</pre>
+    </article>
+  `).join("");
+
+  container.querySelectorAll("[data-apply-protocol-template]").forEach((button) => {
+    button.addEventListener("click", () => applyProtocolTemplate(button.dataset.applyProtocolTemplate));
+  });
 }
 
 function renderDevices() {
@@ -338,7 +708,7 @@ function renderDevices() {
   document.getElementById("device-count").textContent = `${appState.devices.length}`;
   if (appState.devices.length === 0) {
     container.className = "stack empty";
-    container.textContent = "No devices yet.";
+    container.textContent = t("no_devices");
     return;
   }
 
@@ -348,11 +718,11 @@ function renderDevices() {
       <button type="button" data-device-id="${item.device.id}">
         <div class="line">
           <strong>${escapeHTML(item.device.name)}</strong>
-          <span class="pill ${item.online ? "online" : "offline"}">${item.online ? "online" : "offline"}</span>
+          <span class="pill ${item.online ? "online" : "offline"}">${item.online ? t("online") : t("offline")}</span>
         </div>
         <div class="muted mono">${escapeHTML(item.device.id)}</div>
-        <div class="muted">${item.product ? `Product ${escapeHTML(item.product.name)}` : "Unbound"}</div>
-        <div class="mini-list">${renderKVTags(item.device.tags, "No tags")}</div>
+        <div class="muted">${item.product ? `Product ${escapeHTML(item.product.name)}` : t("unbound")}</div>
+        <div class="mini-list">${renderKVTags(item.device.tags, t("no_tags"))}</div>
         <div class="mini-list">${(item.groups || []).map((group) => `<span class="tag">${escapeHTML(group.name)}</span>`).join("")}</div>
         <div class="muted">Last seen ${formatTime(item.last_seen)}</div>
         <div class="muted mono">Token ${escapeHTML(item.device.token || "")}</div>
@@ -380,7 +750,7 @@ function renderGroups() {
   document.getElementById("group-count").textContent = `${appState.groups.length}`;
   if (appState.groups.length === 0) {
     container.className = "stack empty";
-    container.textContent = "No groups yet.";
+    container.textContent = t("no_groups");
     return;
   }
 
@@ -394,7 +764,7 @@ function renderGroups() {
           <div>
             <strong>${escapeHTML(item.group.name)}</strong>
             <div class="muted mono">${escapeHTML(item.group.id)}</div>
-            <div class="muted">${item.product ? `Bound to ${escapeHTML(item.product.name)}` : "Any product"}</div>
+            <div class="muted">${item.product ? `Product ${escapeHTML(item.product.name)}` : t("any_product")}</div>
           </div>
           <span class="chip">${item.device_count} devices</span>
         </div>
@@ -402,11 +772,11 @@ function renderGroups() {
           <div class="meta-tile"><span>Online</span><strong>${item.online_count}</strong></div>
           <div class="meta-tile"><span>Description</span><strong>${escapeHTML(item.group.description || "-")}</strong></div>
         </div>
-        <div class="tag-list">${renderKVTags(item.group.tags, "No tags")}</div>
+        <div class="tag-list">${renderKVTags(item.group.tags, t("no_tags"))}</div>
         <div class="list-actions">
           ${selectedDevice
-            ? `<button class="button ghost" type="button" data-group-${member ? "remove" : "add"}="${item.group.id}">${member ? "Remove selected device" : "Add selected device"}</button>`
-            : '<span class="subtle">Select a device to manage membership.</span>'}
+            ? `<button class="button ghost" type="button" data-group-${member ? "remove" : "add"}="${item.group.id}">${member ? escapeHTML(t("remove_selected_device")) : escapeHTML(t("add_selected_device"))}</button>`
+            : `<span class="subtle">${escapeHTML(t("select_device_membership"))}</span>`}
         </div>
       </article>
     `;
@@ -425,7 +795,7 @@ function renderRules() {
   document.getElementById("rule-count").textContent = `${appState.rules.length}`;
   if (appState.rules.length === 0) {
     container.className = "stack empty";
-    container.textContent = "No rules yet.";
+    container.textContent = t("no_rules");
     return;
   }
 
@@ -459,7 +829,7 @@ function renderAlerts() {
   document.getElementById("alert-count").textContent = `${appState.alerts.length}`;
   if (appState.alerts.length === 0) {
     container.className = "stack empty";
-    container.textContent = "No alerts yet.";
+    container.textContent = t("no_alerts");
     return;
   }
 
@@ -486,8 +856,8 @@ function renderAlerts() {
       </div>
       <div class="muted">${escapeHTML(item.note || "No note")}</div>
       <div class="list-actions">
-        ${item.status !== "acknowledged" && item.status !== "resolved" ? `<button class="button ghost" type="button" data-alert-ack="${item.id}">Acknowledge</button>` : ""}
-        ${item.status !== "resolved" ? `<button class="button primary" type="button" data-alert-resolve="${item.id}">Resolve</button>` : ""}
+        ${item.status !== "acknowledged" && item.status !== "resolved" ? `<button class="button ghost" type="button" data-alert-ack="${item.id}">${escapeHTML(t("acknowledged"))}</button>` : ""}
+        ${item.status !== "resolved" ? `<button class="button primary" type="button" data-alert-resolve="${item.id}">${escapeHTML(t("resolved"))}</button>` : ""}
       </div>
     </article>
   `).join("");
@@ -505,7 +875,7 @@ function renderConfigProfiles() {
   document.getElementById("config-count").textContent = `${appState.configProfiles.length}`;
   if (appState.configProfiles.length === 0) {
     container.className = "stack empty";
-    container.textContent = "No config profiles yet.";
+    container.textContent = t("no_configs");
     return;
   }
 
@@ -526,13 +896,13 @@ function renderConfigProfiles() {
           <span class="chip">${item.profile.applied_count || 0} applied</span>
         </div>
         <div class="mini-list">
-          ${item.product ? `<span class="tag">Product ${escapeHTML(item.product.name)}</span>` : '<span class="tag">All products</span>'}
-          <span class="tag">Updated ${escapeHTML(formatTime(item.profile.updated_at))}</span>
+          ${item.product ? `<span class="tag">Product ${escapeHTML(item.product.name)}</span>` : `<span class="tag">${escapeHTML(t("all_products"))}</span>`}
+          <span class="tag">${escapeHTML(t("updated"))} ${escapeHTML(formatTime(item.profile.updated_at))}</span>
         </div>
         <div class="list-actions">
-          ${canApply ? `<button class="button primary" type="button" data-config-apply="${item.profile.id}">Apply To Selected Device</button>` : ""}
-          ${!selectedDevice ? '<span class="subtle">Select a device to apply.</span>' : ""}
-          ${scopedToAnotherProduct ? '<span class="subtle">Selected device product does not match this profile.</span>' : ""}
+          ${canApply ? `<button class="button primary" type="button" data-config-apply="${item.profile.id}">${escapeHTML(t("apply_selected_device"))}</button>` : ""}
+          ${!selectedDevice ? `<span class="subtle">${escapeHTML(t("select_device_apply"))}</span>` : ""}
+          ${scopedToAnotherProduct ? `<span class="subtle">${escapeHTML(t("product_scope_mismatch"))}</span>` : ""}
         </div>
         <pre>${escapeHTML(pretty(item.profile.values || {}))}</pre>
       </article>
@@ -552,9 +922,9 @@ async function refreshSelectedDevice() {
   }
 
   if (!appState.selectedDeviceId) {
-    selectedName.textContent = "Unselected";
+    selectedName.textContent = t("selected_device_none");
     panel.className = "stack empty";
-    panel.textContent = "Select a device to inspect tags, shadow, commands and alerts.";
+    panel.textContent = t("selected_device_empty");
     return;
   }
 
@@ -565,6 +935,8 @@ async function refreshSelectedDevice() {
     requestJSON(`/api/v1/devices/${encodeURIComponent(appState.selectedDeviceId)}/commands?limit=20`),
     requestJSON(`/api/v1/alerts?device_id=${encodeURIComponent(appState.selectedDeviceId)}&limit=10`),
   ]);
+  const deviceProductView = getProduct(device.device.product_id);
+  const accessProfile = deviceProductView?.product?.access_profile || {};
 
   selectedName.textContent = device.device.name;
   panel.className = "device-detail-grid";
@@ -575,47 +947,56 @@ async function refreshSelectedDevice() {
           <strong>${escapeHTML(device.device.name)}</strong>
           <div class="muted mono">${escapeHTML(device.device.id)}</div>
         </div>
-        <span class="pill ${device.online ? "online" : "offline"}">${device.online ? "online" : "offline"}</span>
+        <span class="pill ${device.online ? "online" : "offline"}">${device.online ? t("online") : t("offline")}</span>
       </div>
       <div class="mini-list">
-        ${device.product ? `<span class="tag">Product ${escapeHTML(device.product.name)}</span>` : '<span class="tag">Unbound</span>'}
+        ${device.product ? `<span class="tag">Product ${escapeHTML(device.product.name)}</span>` : `<span class="tag">${escapeHTML(t("unbound"))}</span>`}
         ${(device.groups || []).map((group) => `<span class="tag">${escapeHTML(group.name)}</span>`).join("")}
+        <span class="tag">${escapeHTML(t("protocol"))} ${escapeHTML(accessProfile.protocol || "tcp_json")}</span>
+        <span class="tag">${escapeHTML(t("ingest_mode"))} ${escapeHTML(accessProfile.ingest_mode || "gateway_tcp")}</span>
       </div>
       <div class="detail-meta-grid">
         <div class="meta-tile"><span>Connected</span><strong>${formatTime(device.connected_at)}</strong></div>
         <div class="meta-tile"><span>Last Seen</span><strong>${formatTime(device.last_seen)}</strong></div>
         <div class="meta-tile"><span>Token</span><strong class="mono">${escapeHTML(device.device.token || "-")}</strong></div>
       </div>
-      <div class="tag-list">${renderKVTags(device.device.tags, "No tags")}</div>
+      <div class="tag-list">${renderKVTags(device.device.tags, t("no_tags"))}</div>
+      <pre>${escapeHTML(pretty({
+        transport: accessProfile.transport || "tcp",
+        protocol: accessProfile.protocol || "tcp_json",
+        ingest_mode: accessProfile.ingest_mode || "gateway_tcp",
+        payload_format: accessProfile.payload_format || "json_values",
+        http_push_path: `/api/v1/ingest/http/${device.device.id}`,
+      }))}</pre>
       <pre>${escapeHTML(pretty(device.device.metadata || {}))}</pre>
     </article>
 
     <article class="detail-card">
-      <div class="line"><strong>Device Tags</strong></div>
+      <div class="line"><strong>${escapeHTML(appState.locale === "zh" ? "设备标签" : "Device Tags")}</strong></div>
       <form id="device-tags-form" class="grid-form">
         <label class="wide">
-          <span>Tags JSON</span>
+          <span>${escapeHTML(appState.locale === "zh" ? "标签 JSON" : "Tags JSON")}</span>
           <textarea id="device-tags-editor" rows="5">${escapeHTML(pretty(device.device.tags || {}))}</textarea>
         </label>
         <div class="actions wide">
-          <button class="button ghost" type="submit">Update Tags</button>
+          <button class="button ghost" type="submit">${escapeHTML(appState.locale === "zh" ? "更新标签" : "Update Tags")}</button>
           <span id="device-tags-status" class="hint"></span>
         </div>
       </form>
     </article>
 
     <article class="detail-card">
-      <div class="line"><strong>Remote Config</strong></div>
+      <div class="line"><strong>${escapeHTML(appState.locale === "zh" ? "远程配置" : "Remote Config")}</strong></div>
       <form id="device-config-form" class="grid-form">
         <label class="wide">
-          <span>Config Profile</span>
+          <span>${escapeHTML(appState.locale === "zh" ? "配置模板" : "Config Profile")}</span>
           <select id="device-config-profile-id">
-            <option value="">Select profile</option>
+            <option value="">${escapeHTML(appState.locale === "zh" ? "选择模板" : "Select profile")}</option>
             ${appState.configProfiles.map((item) => `<option value="${item.profile.id}">${escapeHTML(item.profile.name)}${item.product ? ` | ${escapeHTML(item.product.name)}` : ""}</option>`).join("")}
           </select>
         </label>
         <div class="actions wide">
-          <button class="button primary" type="submit">Apply Config Profile</button>
+          <button class="button primary" type="submit">${escapeHTML(appState.locale === "zh" ? "下发配置模板" : "Apply Config Profile")}</button>
           <span id="device-config-status" class="hint"></span>
         </div>
       </form>
@@ -623,14 +1004,14 @@ async function refreshSelectedDevice() {
     </article>
 
     <article class="detail-card">
-      <div class="line"><strong>Device Shadow</strong></div>
+      <div class="line"><strong>${escapeHTML(appState.locale === "zh" ? "设备影子" : "Device Shadow")}</strong></div>
       <form id="shadow-form" class="grid-form">
         <label class="wide">
-          <span>Desired JSON</span>
+          <span>${escapeHTML(appState.locale === "zh" ? "期望值 JSON" : "Desired JSON")}</span>
           <textarea id="shadow-desired" rows="6">${escapeHTML(pretty(shadow.desired || {}))}</textarea>
         </label>
         <div class="actions wide">
-          <button class="button ghost" type="submit">Update Desired</button>
+          <button class="button ghost" type="submit">${escapeHTML(appState.locale === "zh" ? "更新期望值" : "Update Desired")}</button>
           <span id="shadow-status" class="hint"></span>
         </div>
       </form>
@@ -638,35 +1019,35 @@ async function refreshSelectedDevice() {
     </article>
 
     <article class="detail-card">
-      <div class="line"><strong>Send Command</strong></div>
+      <div class="line"><strong>${escapeHTML(appState.locale === "zh" ? "下发命令" : "Send Command")}</strong></div>
       <form id="command-form" class="grid-form">
         <label>
-          <span>Command</span>
+          <span>${escapeHTML(appState.locale === "zh" ? "命令" : "Command")}</span>
           <input id="command-name" type="text" value="reboot">
         </label>
         <label class="wide">
-          <span>Params JSON</span>
+          <span>${escapeHTML(appState.locale === "zh" ? "参数 JSON" : "Params JSON")}</span>
           <textarea id="command-params" rows="4">{"delay":1}</textarea>
         </label>
         <div class="actions wide">
-          <button class="button primary" type="submit">Send Command</button>
+          <button class="button primary" type="submit">${escapeHTML(appState.locale === "zh" ? "发送命令" : "Send Command")}</button>
           <span id="command-status" class="hint"></span>
         </div>
       </form>
     </article>
 
     <article class="detail-card">
-      <div class="line"><strong>Recent Telemetry</strong></div>
+      <div class="line"><strong>${escapeHTML(appState.locale === "zh" ? "最近遥测" : "Recent Telemetry")}</strong></div>
       <pre>${escapeHTML(pretty(telemetry))}</pre>
     </article>
 
     <article class="detail-card">
-      <div class="line"><strong>Recent Commands</strong></div>
+      <div class="line"><strong>${escapeHTML(appState.locale === "zh" ? "最近命令" : "Recent Commands")}</strong></div>
       <pre>${escapeHTML(pretty(commands))}</pre>
     </article>
 
     <article class="detail-card">
-      <div class="line"><strong>Device Alerts</strong></div>
+      <div class="line"><strong>${escapeHTML(appState.locale === "zh" ? "设备告警" : "Device Alerts")}</strong></div>
       <pre>${escapeHTML(pretty(alerts))}</pre>
     </article>
   `;
@@ -674,12 +1055,12 @@ async function refreshSelectedDevice() {
   document.getElementById("device-tags-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      setHint("device-tags-status", "Updating...");
+      setHint("device-tags-status", t("update_in_progress"));
       await requestJSON(`/api/v1/devices/${encodeURIComponent(appState.selectedDeviceId)}/tags`, {
         method: "PUT",
         body: JSON.stringify({ tags: parseJSON(document.getElementById("device-tags-editor").value, {}) }),
       });
-      setHint("device-tags-status", "Tags updated");
+      setHint("device-tags-status", t("tags_updated"));
       await refreshAll();
     } catch (error) {
       setHint("device-tags-status", error.message, true);
@@ -691,9 +1072,9 @@ async function refreshSelectedDevice() {
     try {
       const profileID = document.getElementById("device-config-profile-id").value;
       if (!profileID) {
-        throw new Error("select a config profile first");
+        throw new Error(t("select_profile_first"));
       }
-      setHint("device-config-status", "Applying...");
+      setHint("device-config-status", t("apply_in_progress"));
       await applyConfigProfile(profileID, appState.selectedDeviceId, "device-config-status");
     } catch (error) {
       setHint("device-config-status", error.message, true);
@@ -703,12 +1084,12 @@ async function refreshSelectedDevice() {
   document.getElementById("shadow-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      setHint("shadow-status", "Updating...");
+      setHint("shadow-status", t("update_in_progress"));
       await requestJSON(`/api/v1/devices/${encodeURIComponent(appState.selectedDeviceId)}/shadow`, {
         method: "PUT",
         body: JSON.stringify({ desired: parseJSON(document.getElementById("shadow-desired").value, {}) }),
       });
-      setHint("shadow-status", "Shadow updated");
+      setHint("shadow-status", t("shadow_updated"));
       await refreshAll();
     } catch (error) {
       setHint("shadow-status", error.message, true);
@@ -718,7 +1099,7 @@ async function refreshSelectedDevice() {
   document.getElementById("command-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      setHint("command-status", "Sending...");
+      setHint("command-status", t("send_in_progress"));
       await requestJSON(`/api/v1/devices/${encodeURIComponent(appState.selectedDeviceId)}/commands`, {
         method: "POST",
         body: JSON.stringify({
@@ -726,7 +1107,7 @@ async function refreshSelectedDevice() {
           params: parseJSON(document.getElementById("command-params").value, {}),
         }),
       });
-      setHint("command-status", "Command accepted");
+      setHint("command-status", t("command_accepted"));
       await refreshAll();
     } catch (error) {
       setHint("command-status", error.message, true);
@@ -742,7 +1123,7 @@ function renderSimulators() {
 
   if (appState.simulators.length === 0) {
     container.className = "stack empty";
-    container.textContent = "No simulators yet.";
+    container.textContent = t("no_simulators");
     return;
   }
 
@@ -756,17 +1137,17 @@ function renderSimulators() {
           <div class="muted">${sim.device.product_key ? `ProductKey ${escapeHTML(sim.device.product_key)}` : "Unbound"}</div>
         </div>
         <div class="sim-summary">
-          <span class="pill ${sim.connected ? "online" : "offline"}">${sim.connected ? "connected" : "disconnected"}</span>
+          <span class="pill ${sim.connected ? "online" : "offline"}">${sim.connected ? t("online") : t("offline")}</span>
           <span class="pill">ack ${sim.auto_ack ? "on" : "off"}</span>
           <span class="pill">ping ${sim.auto_ping ? "on" : "off"}</span>
           <span class="pill">telemetry ${sim.auto_telemetry ? `${sim.telemetry_interval_ms}ms` : "manual"}</span>
         </div>
       </div>
       <div class="sim-actions">
-        <button class="button ghost" type="button" data-connect="${sim.id}">Connect</button>
-        <button class="button ghost" type="button" data-disconnect="${sim.id}">Disconnect</button>
-        <button class="button accent" type="button" data-telemetry="${sim.id}">Send Telemetry</button>
-        <button class="button ghost" type="button" data-remove="${sim.id}">Remove</button>
+        <button class="button ghost" type="button" data-connect="${sim.id}">${escapeHTML(t("connect"))}</button>
+        <button class="button ghost" type="button" data-disconnect="${sim.id}">${escapeHTML(t("disconnect"))}</button>
+        <button class="button accent" type="button" data-telemetry="${sim.id}">${escapeHTML(t("send_telemetry"))}</button>
+        <button class="button ghost" type="button" data-remove="${sim.id}">${escapeHTML(t("remove"))}</button>
       </div>
       <div class="sim-grid">
         <div class="detail-card">
@@ -792,7 +1173,7 @@ function renderSimulators() {
         </div>
         <div class="detail-card">
           <div class="line"><strong>Logs</strong></div>
-          <pre>${escapeHTML((sim.logs || []).map((entry) => `[${formatTime(entry.timestamp)}] ${entry.level.toUpperCase()} ${entry.message}`).join("\n") || "No logs yet.")}</pre>
+          <pre>${escapeHTML((sim.logs || []).map((entry) => `[${formatTime(entry.timestamp)}] ${entry.level.toUpperCase()} ${entry.message}`).join("\n") || t("no_logs"))}</pre>
         </div>
       </div>
     </article>
@@ -860,13 +1241,35 @@ async function applyConfigProfile(profileId, deviceId, hintId = "config-status")
     throw new Error("config profile and device are required");
   }
 
-  setHint(hintId, "Applying...");
+  setHint(hintId, t("apply_in_progress"));
   await requestJSON(`/api/v1/config-profiles/${encodeURIComponent(profileId)}/apply`, {
     method: "POST",
     body: JSON.stringify({ device_id: deviceId }),
   });
-  setHint(hintId, "Config applied");
+  setHint(hintId, t("config_applied"));
   await refreshAll();
+}
+
+function applyProtocolTemplate(templateId) {
+  const entry = appState.protocolCatalog.find((item) => item.id === templateId);
+  if (!entry) {
+    return;
+  }
+
+  document.getElementById("product-transport").value = entry.access_profile.transport || "tcp";
+  document.getElementById("product-protocol").value = entry.access_profile.protocol || "tcp_json";
+  document.getElementById("product-ingest-mode").value = entry.access_profile.ingest_mode || "gateway_tcp";
+  document.getElementById("product-payload-format").value = entry.access_profile.payload_format || "json_values";
+  document.getElementById("product-sensor-template").value = entry.access_profile.sensor_template || "generic";
+  document.getElementById("product-auth-mode").value = entry.access_profile.auth_mode || "token";
+  document.getElementById("product-topic").value = entry.access_profile.topic || "";
+  document.getElementById("product-point-mappings").value = pretty(entry.access_profile.point_mappings || []);
+  document.getElementById("product-thing-model").value = pretty(entry.thing_model || {});
+  document.getElementById("product-metadata").value = pretty({
+    template_id: entry.id,
+    template_name: entry.name,
+  });
+  setHint("product-status", `${t("protocol_template")}: ${entry.name}`);
 }
 
 async function updateAlertStatus(alertId, status) {
@@ -887,7 +1290,7 @@ async function updateAlertStatus(alertId, status) {
 }
 
 function activateView(viewId) {
-  const target = VIEW_TITLES[viewId] ? viewId : "overview";
+  const target = VIEW_TITLE_KEYS[viewId] ? viewId : "overview";
   appState.currentView = target;
 
   document.querySelectorAll("[data-view-target]").forEach((node) => {
@@ -899,15 +1302,16 @@ function activateView(viewId) {
 
   const title = document.getElementById("view-title");
   if (title) {
-    title.textContent = VIEW_TITLES[target];
+    title.textContent = t(VIEW_TITLE_KEYS[target]);
   }
 }
 
 async function refreshAll() {
   const keepCurrentDetail = isEditingTextField();
-  const [health, metrics, products, devices, groups, rules, alerts, configProfiles, simulators] = await Promise.all([
+  const [health, metrics, catalog, products, devices, groups, rules, alerts, configProfiles, simulators] = await Promise.all([
     requestJSON("/healthz"),
     requestJSON("/metrics"),
+    requestJSON("/api/v1/protocol-catalog"),
     requestJSON("/api/v1/products"),
     requestJSON("/api/v1/devices"),
     requestJSON("/api/v1/groups"),
@@ -919,6 +1323,7 @@ async function refreshAll() {
 
   appState.health = health;
   appState.metrics = metrics;
+  appState.protocolCatalog = catalog;
   appState.products = products;
   appState.devices = devices;
   appState.groups = groups;
@@ -939,12 +1344,14 @@ async function refreshAll() {
   syncFormOptions();
   renderOverview();
   renderProducts();
+  renderProtocolCatalog();
   renderDevices();
   renderGroups();
   renderRules();
   renderAlerts();
   renderConfigProfiles();
   renderSimulators();
+  applyTranslations();
 
   if (!keepCurrentDetail) {
     await refreshSelectedDevice();
@@ -970,19 +1377,29 @@ function bindForms() {
   document.getElementById("product-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      setHint("product-status", "Creating...");
+      setHint("product-status", t("create_in_progress"));
       await requestJSON("/api/v1/products", {
         method: "POST",
         body: JSON.stringify({
           name: document.getElementById("product-name").value.trim(),
           description: document.getElementById("product-description").value.trim(),
           metadata: parseJSON(document.getElementById("product-metadata").value, {}),
+          access_profile: {
+            transport: document.getElementById("product-transport").value,
+            protocol: document.getElementById("product-protocol").value,
+            ingest_mode: document.getElementById("product-ingest-mode").value,
+            payload_format: document.getElementById("product-payload-format").value,
+            sensor_template: document.getElementById("product-sensor-template").value,
+            auth_mode: document.getElementById("product-auth-mode").value,
+            topic: document.getElementById("product-topic").value.trim(),
+            point_mappings: parseJSON(document.getElementById("product-point-mappings").value, []),
+          },
           thing_model: parseJSON(document.getElementById("product-thing-model").value, {}),
         }),
       });
       document.getElementById("product-name").value = "";
       document.getElementById("product-description").value = "";
-      setHint("product-status", "Product created");
+      setHint("product-status", t("created_ok"));
       await refreshAll();
     } catch (error) {
       setHint("product-status", error.message, true);
@@ -992,7 +1409,7 @@ function bindForms() {
   document.getElementById("device-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      setHint("device-status", "Creating...");
+      setHint("device-status", t("create_in_progress"));
       await requestJSON("/api/v1/devices", {
         method: "POST",
         body: JSON.stringify({
@@ -1003,7 +1420,7 @@ function bindForms() {
         }),
       });
       document.getElementById("device-name").value = "";
-      setHint("device-status", "Device created");
+      setHint("device-status", t("created_ok"));
       await refreshAll();
     } catch (error) {
       setHint("device-status", error.message, true);
@@ -1013,7 +1430,7 @@ function bindForms() {
   document.getElementById("group-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      setHint("group-status", "Creating...");
+      setHint("group-status", t("create_in_progress"));
       await requestJSON("/api/v1/groups", {
         method: "POST",
         body: JSON.stringify({
@@ -1025,7 +1442,7 @@ function bindForms() {
       });
       document.getElementById("group-name").value = "";
       document.getElementById("group-description").value = "";
-      setHint("group-status", "Group created");
+      setHint("group-status", t("created_ok"));
       await refreshAll();
     } catch (error) {
       setHint("group-status", error.message, true);
@@ -1035,7 +1452,7 @@ function bindForms() {
   document.getElementById("rule-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      setHint("rule-status", "Creating...");
+      setHint("rule-status", t("create_in_progress"));
       await requestJSON("/api/v1/rules", {
         method: "POST",
         body: JSON.stringify({
@@ -1055,7 +1472,7 @@ function bindForms() {
       });
       document.getElementById("rule-name").value = "";
       document.getElementById("rule-description").value = "";
-      setHint("rule-status", "Rule created");
+      setHint("rule-status", t("created_ok"));
       await refreshAll();
     } catch (error) {
       setHint("rule-status", error.message, true);
@@ -1065,7 +1482,7 @@ function bindForms() {
   document.getElementById("config-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      setHint("config-status", "Creating...");
+      setHint("config-status", t("create_in_progress"));
       await requestJSON("/api/v1/config-profiles", {
         method: "POST",
         body: JSON.stringify({
@@ -1077,7 +1494,7 @@ function bindForms() {
       });
       document.getElementById("config-name").value = "";
       document.getElementById("config-description").value = "";
-      setHint("config-status", "Config profile created");
+      setHint("config-status", t("created_ok"));
       await refreshAll();
     } catch (error) {
       setHint("config-status", error.message, true);
@@ -1087,7 +1504,7 @@ function bindForms() {
   document.getElementById("sim-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      setHint("sim-status", "Creating...");
+      setHint("sim-status", t("create_in_progress"));
       await requestJSON("/api/v1/simulators", {
         method: "POST",
         body: JSON.stringify({
@@ -1103,7 +1520,7 @@ function bindForms() {
         }),
       });
       document.getElementById("sim-name").value = "";
-      setHint("sim-status", "Simulator created");
+      setHint("sim-status", t("created_ok"));
       await refreshAll();
     } catch (error) {
       setHint("sim-status", error.message, true);
@@ -1112,6 +1529,23 @@ function bindForms() {
 
   document.getElementById("refresh-button").addEventListener("click", () => {
     refreshAll().catch(handleGlobalError);
+  });
+  document.getElementById("locale-toggle").addEventListener("click", () => {
+    appState.locale = appState.locale === "zh" ? "en" : "zh";
+    window.localStorage.setItem("mvp_locale", appState.locale);
+    syncFormOptions();
+    applyTranslations();
+    renderStats(appState.metrics || {});
+    renderOverview();
+    renderProducts();
+    renderProtocolCatalog();
+    renderDevices();
+    renderGroups();
+    renderRules();
+    renderAlerts();
+    renderConfigProfiles();
+    renderSimulators();
+    refreshSelectedDevice().catch(handleGlobalError);
   });
 
   document.getElementById("sim-product-id").addEventListener("change", (event) => {

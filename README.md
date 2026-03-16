@@ -9,6 +9,7 @@
 - 设备注册与 `token` 鉴权
 - 设备标签（Tags）
 - TCP 长连接接入
+- HTTP Push 设备接入
 - 遥测上报
 - 设备影子
 - 命令下发与回执
@@ -16,8 +17,9 @@
 - 阈值规则与告警事件
 - 告警确认 / 处理 / 关闭
 - 远程配置模板（Config Profiles）
+- 多协议产品接入配置与常见传感器模板
 - 带 UI 的测试设备模拟器
-- 内嵌网页控制台（SagooIoT 风格侧边栏）
+- 内嵌网页控制台（SagooIoT 风格侧边栏，中英文切换）
 - GitHub Actions 交叉编译 Windows / Linux 二进制
 
 ## 文档
@@ -28,7 +30,7 @@
 
 - 当前是单节点单二进制 MVP
 - 默认使用内存存储，进程重启后状态不会保留
-- 设备协议当前是 `TCP + JSON Lines`
+- 当前内置监听入口是 `TCP + JSON Lines` 和 `HTTP Push`
 - 200k 设备接入目前是架构目标，不是这版单节点的实测结论
 
 ## 本地运行
@@ -86,12 +88,38 @@ go build -o bin\mvp-platform.exe .\cmd\mvp-platform
 
 - 总览页查看产品、设备、规则、告警、配置模板等核心指标
 - 在 Product Center 创建产品和物模型
+- 在 Product Center 配置产品接入方式、协议模板、载荷格式和点位映射
 - 在 Device Center 注册设备、编辑设备标签、查看在线状态 / 遥测 / 命令 / 影子
 - 在 Governance 中创建静态设备分组，并把设备加入 / 移出分组
 - 在 Governance 中创建按产品 / 分组 / 设备范围生效的阈值规则
 - 在 Governance 中查看告警，并执行确认 / 关闭
 - 在 Config Center 中创建远程配置模板并下发到选中设备
 - 在 Simulator Lab 中创建和控制测试设备模拟器
+- 支持控制台中英文切换
+
+## 当前接入方式
+
+这一版已经支持两类可直接使用的接入入口：
+
+- `TCP + JSON Lines` 直连接入
+- `HTTP Push` 统一接入
+
+同时，产品侧已经内置常见协议模板，便于通过边缘网关 / 协议桥接入：
+
+- `tcp_json`
+- `http_json`
+- `mqtt_json`
+- `modbus_tcp`
+- `modbus_rtu`
+- `opcua_json`
+- `bacnet_ip`
+- `lorawan_uplink`
+
+说明：
+
+- 当前真正内置监听的仍然是 `TCP Gateway` 和 `HTTP Push`
+- `MQTT / Modbus / OPC UA / BACnet / LoRaWAN` 在这一版通过“产品接入配置 + HTTP Push 统一入口”承接桥接数据
+- 可通过 `GET /api/v1/protocol-catalog` 查看内置协议与传感器模板
 
 ## 典型 API
 
@@ -103,6 +131,14 @@ curl -X POST http://127.0.0.1:8080/api/v1/products \
   -d '{
     "name":"thermostat-product",
     "description":"demo product",
+    "access_profile":{
+      "transport":"tcp",
+      "protocol":"tcp_json",
+      "ingest_mode":"gateway_tcp",
+      "payload_format":"json_values",
+      "auth_mode":"token",
+      "sensor_template":"generic"
+    },
     "thing_model":{
       "properties":[
         {"identifier":"temperature","name":"Temperature","data_type":"float","access_mode":"rw"}
@@ -176,6 +212,12 @@ curl -X POST http://127.0.0.1:8080/api/v1/rules \
 curl "http://127.0.0.1:8080/api/v1/alerts?limit=20"
 ```
 
+查看协议模板目录：
+
+```bash
+curl http://127.0.0.1:8080/api/v1/protocol-catalog
+```
+
 确认告警：
 
 ```bash
@@ -225,6 +267,28 @@ curl -X POST http://127.0.0.1:8080/api/v1/config-profiles \
 curl -X POST http://127.0.0.1:8080/api/v1/config-profiles/<profile_id>/apply \
   -H "Content-Type: application/json" \
   -d '{"device_id":"<device_id>"}'
+```
+
+HTTP Push 接入示例：
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/ingest/http/<device_id> \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token":"<device_token>",
+    "values":{"temperature":24.6,"humidity":56}
+  }'
+```
+
+Modbus 寄存器映射接入示例：
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/ingest/http/<device_id> \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token":"<device_token>",
+    "registers":{"40001":231,"40002":556}
+  }'
 ```
 
 下发命令：

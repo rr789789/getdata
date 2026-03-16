@@ -51,7 +51,7 @@ func TestServiceLifecycle(t *testing.T) {
 	service := newTestService()
 	ctx := context.Background()
 
-	product, err := service.CreateProduct(ctx, "meter-product", "demo", nil, model.ThingModel{
+	product, err := service.CreateProduct(ctx, "meter-product", "demo", nil, model.ProductAccessProfile{}, model.ThingModel{
 		Properties: []model.ThingModelProperty{
 			{Identifier: "temp", Name: "Temperature", DataType: "float"},
 		},
@@ -200,7 +200,7 @@ func TestGroupRuleAlertFlow(t *testing.T) {
 	service := newTestService()
 	ctx := context.Background()
 
-	product, err := service.CreateProduct(ctx, "boiler-product", "demo", nil, model.ThingModel{
+	product, err := service.CreateProduct(ctx, "boiler-product", "demo", nil, model.ProductAccessProfile{}, model.ThingModel{
 		Properties: []model.ThingModelProperty{
 			{Identifier: "temp", Name: "Temperature", DataType: "float"},
 		},
@@ -289,7 +289,7 @@ func TestConfigProfileFlow(t *testing.T) {
 	service := newTestService()
 	ctx := context.Background()
 
-	product, err := service.CreateProduct(ctx, "config-product", "demo", nil, model.ThingModel{
+	product, err := service.CreateProduct(ctx, "config-product", "demo", nil, model.ProductAccessProfile{}, model.ThingModel{
 		Properties: []model.ThingModelProperty{
 			{Identifier: "temperature", Name: "Temperature", DataType: "float"},
 			{Identifier: "enabled", Name: "Enabled", DataType: "bool"},
@@ -326,6 +326,57 @@ func TestConfigProfileFlow(t *testing.T) {
 	}
 	if len(profiles) != 1 || profiles[0].Profile.AppliedCount != 1 {
 		t.Fatalf("unexpected config profiles: %#v", profiles)
+	}
+}
+
+func TestAccessProfileFlow(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService()
+	ctx := context.Background()
+
+	product, err := service.CreateProduct(ctx, "modbus-sensor", "demo", nil, model.ProductAccessProfile{
+		Transport:     "rs485",
+		Protocol:      "modbus_rtu",
+		IngestMode:    "http_push",
+		PayloadFormat: "register_map",
+		PointMappings: []model.ProtocolPointMapping{
+			{Source: "register:40001", Property: "temperature", Scale: 0.1},
+			{Source: "register:40002", Property: "humidity", Scale: 0.1},
+		},
+	}, model.ThingModel{
+		Properties: []model.ThingModelProperty{
+			{Identifier: "temperature", Name: "Temperature", DataType: "float"},
+			{Identifier: "humidity", Name: "Humidity", DataType: "float"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateProduct() error = %v", err)
+	}
+	if product.AccessProfile.Protocol != "modbus_rtu" {
+		t.Fatalf("product access protocol = %q, want modbus_rtu", product.AccessProfile.Protocol)
+	}
+	if len(product.AccessProfile.PointMappings) != 2 {
+		t.Fatalf("point mapping len = %d, want 2", len(product.AccessProfile.PointMappings))
+	}
+
+	updated, err := service.UpdateProductAccessProfile(ctx, product.ID, model.ProductAccessProfile{
+		Transport:     "http",
+		Protocol:      "http_json",
+		IngestMode:    "http_push",
+		PayloadFormat: "json_values",
+		SensorTemplate:"environment",
+	})
+	if err != nil {
+		t.Fatalf("UpdateProductAccessProfile() error = %v", err)
+	}
+	if updated.AccessProfile.Protocol != "http_json" {
+		t.Fatalf("updated access protocol = %q, want http_json", updated.AccessProfile.Protocol)
+	}
+
+	catalog := service.ProtocolCatalog()
+	if len(catalog) < 3 {
+		t.Fatalf("protocol catalog len = %d, want >= 3", len(catalog))
 	}
 }
 

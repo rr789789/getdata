@@ -41,6 +41,8 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealth)
 	mux.HandleFunc("/metrics", s.handleMetrics)
+	mux.HandleFunc("/api/v1/protocol-catalog", s.handleProtocolCatalog)
+	mux.HandleFunc("/api/v1/ingest/http/", s.handleHTTPIngestRoutes)
 	mux.HandleFunc("/api/v1/products", s.handleProducts)
 	mux.HandleFunc("/api/v1/products/", s.handleProductRoutes)
 	mux.HandleFunc("/api/v1/groups", s.handleGroups)

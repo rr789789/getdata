@@ -102,7 +102,7 @@ func NewService(
 	}
 }
 
-func (s *Service) CreateProduct(ctx context.Context, name, description string, metadata map[string]string, thingModel model.ThingModel) (model.Product, error) {
+func (s *Service) CreateProduct(ctx context.Context, name, description string, metadata map[string]string, accessProfile model.ProductAccessProfile, thingModel model.ThingModel) (model.Product, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return model.Product{}, fmt.Errorf("%w: product name is required", ErrInvalidProduct)
@@ -113,16 +113,24 @@ func (s *Service) CreateProduct(ctx context.Context, name, description string, m
 	if err != nil {
 		return model.Product{}, err
 	}
+	normalizedAccessProfile, err := normalizeAccessProfile(accessProfile)
+	if err != nil {
+		return model.Product{}, err
+	}
+	if err := validateAccessMappings(normalizedThingModel, normalizedAccessProfile); err != nil {
+		return model.Product{}, err
+	}
 
 	product := model.Product{
-		ID:          util.NewID("prd"),
-		Key:         util.NewID("pk"),
-		Name:        name,
-		Description: strings.TrimSpace(description),
-		Metadata:    cloneStringMap(metadata),
-		ThingModel:  normalizedThingModel,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:            util.NewID("prd"),
+		Key:           util.NewID("pk"),
+		Name:          name,
+		Description:   strings.TrimSpace(description),
+		Metadata:      cloneStringMap(metadata),
+		AccessProfile: normalizedAccessProfile,
+		ThingModel:    normalizedThingModel,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 
 	if err := s.products.CreateProduct(ctx, product); err != nil {
@@ -174,6 +182,32 @@ func (s *Service) UpdateProductThingModel(ctx context.Context, productID string,
 		return model.Product{}, err
 	}
 	return product, nil
+}
+
+func (s *Service) UpdateProductAccessProfile(ctx context.Context, productID string, accessProfile model.ProductAccessProfile) (model.Product, error) {
+	product, err := s.products.GetProduct(ctx, strings.TrimSpace(productID))
+	if err != nil {
+		return model.Product{}, err
+	}
+
+	normalizedAccessProfile, err := normalizeAccessProfile(accessProfile)
+	if err != nil {
+		return model.Product{}, err
+	}
+	if err := validateAccessMappings(product.ThingModel, normalizedAccessProfile); err != nil {
+		return model.Product{}, err
+	}
+
+	product.AccessProfile = normalizedAccessProfile
+	product.UpdatedAt = time.Now().UTC()
+	if err := s.products.SaveProduct(ctx, product); err != nil {
+		return model.Product{}, err
+	}
+	return product, nil
+}
+
+func (s *Service) ProtocolCatalog() []model.ProtocolCatalogEntry {
+	return model.DefaultProtocolCatalog()
 }
 
 func (s *Service) CreateGroup(ctx context.Context, name, description, productID string, tags map[string]string) (model.DeviceGroup, error) {
@@ -1350,6 +1384,205 @@ func normalizeAlertStatus(value model.AlertStatus) model.AlertStatus {
 	default:
 		return ""
 	}
+}
+
+func normalizeAccessProfile(profile model.ProductAccessProfile) (model.ProductAccessProfile, error) {
+	profile.Transport = normalizeTransport(profile.Transport)
+	profile.Protocol = normalizeProtocol(profile.Protocol)
+	profile.IngestMode = normalizeIngestMode(profile.IngestMode)
+	profile.PayloadFormat = normalizePayloadFormat(profile.PayloadFormat)
+	profile.AuthMode = normalizeAuthMode(profile.AuthMode)
+	profile.SensorTemplate = strings.TrimSpace(strings.ToLower(profile.SensorTemplate))
+	profile.Topic = strings.TrimSpace(profile.Topic)
+	profile.Notes = strings.TrimSpace(profile.Notes)
+	profile.Metadata = cloneStringMap(profile.Metadata)
+
+	if profile.Protocol == "" {
+		switch profile.IngestMode {
+		case "http_push":
+			profile.Protocol = "http_json"
+		case "bridge_http":
+			profile.Protocol = "mqtt_json"
+		default:
+			profile.Protocol = "tcp_json"
+		}
+	}
+	if profile.Transport == "" {
+		switch profile.Protocol {
+		case "http_json":
+			profile.Transport = "http"
+		case "mqtt_json":
+			profile.Transport = "mqtt"
+		case "modbus_tcp":
+			profile.Transport = "ethernet"
+		case "modbus_rtu":
+			profile.Transport = "rs485"
+		case "opcua_json":
+			profile.Transport = "opcua"
+		case "bacnet_ip":
+			profile.Transport = "bacnet"
+		case "lorawan_uplink":
+			profile.Transport = "lorawan"
+		default:
+			profile.Transport = "tcp"
+		}
+	}
+	if profile.IngestMode == "" {
+		switch profile.Protocol {
+		case "tcp_json":
+			profile.IngestMode = "gateway_tcp"
+		case "http_json", "modbus_tcp", "modbus_rtu":
+			profile.IngestMode = "http_push"
+		default:
+			profile.IngestMode = "bridge_http"
+		}
+	}
+	if profile.PayloadFormat == "" {
+		switch profile.Protocol {
+		case "modbus_tcp", "modbus_rtu":
+			profile.PayloadFormat = "register_map"
+		default:
+			profile.PayloadFormat = "json_values"
+		}
+	}
+	if profile.AuthMode == "" {
+		profile.AuthMode = "token"
+	}
+
+	if profile.Protocol == "" || profile.Transport == "" || profile.IngestMode == "" || profile.PayloadFormat == "" || profile.AuthMode == "" {
+		return model.ProductAccessProfile{}, fmt.Errorf("%w: invalid access profile", ErrInvalidProduct)
+	}
+
+	if len(profile.PointMappings) > 0 {
+		normalizedMappings := make([]model.ProtocolPointMapping, 0, len(profile.PointMappings))
+		for _, item := range profile.PointMappings {
+			item.Source = strings.TrimSpace(item.Source)
+			item.Property = strings.TrimSpace(item.Property)
+			item.Unit = strings.TrimSpace(item.Unit)
+			if item.Source == "" || item.Property == "" {
+				return model.ProductAccessProfile{}, fmt.Errorf("%w: point mapping source and property are required", ErrInvalidProduct)
+			}
+			if item.Scale == 0 {
+				item.Scale = 1
+			}
+			normalizedMappings = append(normalizedMappings, item)
+		}
+		profile.PointMappings = normalizedMappings
+	}
+
+	return profile, nil
+}
+
+func normalizeTransport(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "tcp", "socket":
+		return "tcp"
+	case "http", "https":
+		return "http"
+	case "mqtt":
+		return "mqtt"
+	case "rs485", "serial":
+		return "rs485"
+	case "ethernet":
+		return "ethernet"
+	case "opcua", "opc_ua":
+		return "opcua"
+	case "bacnet", "bacnet_ip":
+		return "bacnet"
+	case "lorawan", "lora":
+		return "lorawan"
+	default:
+		return strings.ToLower(strings.TrimSpace(value))
+	}
+}
+
+func normalizeProtocol(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "default":
+		return ""
+	case "tcp", "tcp_json", "json_lines":
+		return "tcp_json"
+	case "http", "http_json":
+		return "http_json"
+	case "mqtt", "mqtt_json":
+		return "mqtt_json"
+	case "modbus", "modbus_tcp":
+		return "modbus_tcp"
+	case "modbus_rtu":
+		return "modbus_rtu"
+	case "opcua", "opcua_json":
+		return "opcua_json"
+	case "bacnet", "bacnet_ip":
+		return "bacnet_ip"
+	case "lorawan", "lorawan_uplink":
+		return "lorawan_uplink"
+	default:
+		return strings.ToLower(strings.TrimSpace(value))
+	}
+}
+
+func normalizeIngestMode(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "default":
+		return ""
+	case "gateway", "gateway_tcp", "direct":
+		return "gateway_tcp"
+	case "http", "http_push":
+		return "http_push"
+	case "bridge", "bridge_http", "webhook":
+		return "bridge_http"
+	default:
+		return strings.ToLower(strings.TrimSpace(value))
+	}
+}
+
+func normalizePayloadFormat(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "default":
+		return ""
+	case "json", "json_values":
+		return "json_values"
+	case "flat", "flat_json":
+		return "flat_json"
+	case "registers", "register_map":
+		return "register_map"
+	case "mapped", "mapped_json":
+		return "mapped_json"
+	default:
+		return strings.ToLower(strings.TrimSpace(value))
+	}
+}
+
+func normalizeAuthMode(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "default":
+		return ""
+	case "token", "device_token":
+		return "token"
+	case "bearer", "bearer_token":
+		return "bearer_token"
+	case "bridge_secret", "secret":
+		return "bridge_secret"
+	default:
+		return strings.ToLower(strings.TrimSpace(value))
+	}
+}
+
+func validateAccessMappings(thingModel model.ThingModel, accessProfile model.ProductAccessProfile) error {
+	if len(accessProfile.PointMappings) == 0 || len(thingModel.Properties) == 0 {
+		return nil
+	}
+
+	properties := make(map[string]struct{}, len(thingModel.Properties))
+	for _, property := range thingModel.Properties {
+		properties[property.Identifier] = struct{}{}
+	}
+	for _, item := range accessProfile.PointMappings {
+		if _, exists := properties[item.Property]; !exists {
+			return fmt.Errorf("%w: point mapping property %q not found in thing model", ErrInvalidProduct, item.Property)
+		}
+	}
+	return nil
 }
 
 func normalizeRuleCondition(product model.Product, hasProduct bool, condition model.RuleCondition) (model.RuleCondition, error) {

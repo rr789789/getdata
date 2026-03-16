@@ -46,6 +46,7 @@
           </div>
         </div>
         <div class="topbar-actions">
+          <button id="locale-toggle" class="button ghost" type="button">中文 / EN</button>
           <button id="refresh-button" class="button ghost" type="button">Refresh</button>
         </div>
       </header>
@@ -124,9 +125,80 @@
                   <span>Description</span>
                   <input id="product-description" type="text" placeholder="Smart thermostat product">
                 </label>
+                <label>
+                  <span>Transport</span>
+                  <select id="product-transport">
+                    <option value="tcp">tcp</option>
+                    <option value="http">http</option>
+                    <option value="mqtt">mqtt</option>
+                    <option value="rs485">rs485</option>
+                    <option value="ethernet">ethernet</option>
+                    <option value="opcua">opcua</option>
+                    <option value="bacnet">bacnet</option>
+                    <option value="lorawan">lorawan</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Protocol</span>
+                  <select id="product-protocol">
+                    <option value="tcp_json">tcp_json</option>
+                    <option value="http_json">http_json</option>
+                    <option value="mqtt_json">mqtt_json</option>
+                    <option value="modbus_rtu">modbus_rtu</option>
+                    <option value="modbus_tcp">modbus_tcp</option>
+                    <option value="opcua_json">opcua_json</option>
+                    <option value="bacnet_ip">bacnet_ip</option>
+                    <option value="lorawan_uplink">lorawan_uplink</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Ingest Mode</span>
+                  <select id="product-ingest-mode">
+                    <option value="gateway_tcp">gateway_tcp</option>
+                    <option value="http_push">http_push</option>
+                    <option value="bridge_http">bridge_http</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Payload Format</span>
+                  <select id="product-payload-format">
+                    <option value="json_values">json_values</option>
+                    <option value="flat_json">flat_json</option>
+                    <option value="register_map">register_map</option>
+                    <option value="mapped_json">mapped_json</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Sensor Template</span>
+                  <select id="product-sensor-template">
+                    <option value="generic">generic</option>
+                    <option value="environment">environment</option>
+                    <option value="power-meter">power-meter</option>
+                    <option value="temp-humidity-rs485">temp-humidity-rs485</option>
+                    <option value="industrial-plc">industrial-plc</option>
+                    <option value="building-hvac">building-hvac</option>
+                    <option value="battery-env">battery-env</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Auth Mode</span>
+                  <select id="product-auth-mode">
+                    <option value="token">token</option>
+                    <option value="bearer_token">bearer_token</option>
+                    <option value="bridge_secret">bridge_secret</option>
+                  </select>
+                </label>
+                <label class="wide">
+                  <span>Topic / Path</span>
+                  <input id="product-topic" type="text" placeholder="factory/+/sensor/+/up">
+                </label>
                 <label class="wide">
                   <span>Metadata JSON</span>
                   <textarea id="product-metadata" rows="3">{"category":"demo","node_type":"directDevice"}</textarea>
+                </label>
+                <label class="wide">
+                  <span>Point Mappings JSON</span>
+                  <textarea id="product-point-mappings" rows="4">[]</textarea>
                 </label>
                 <label class="wide">
                   <span>Thing Model JSON</span>
@@ -150,6 +222,16 @@
               </form>
               <div id="product-list" class="stack empty">No products yet.</div>
             </div>
+          </section>
+
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">Protocol</p>
+                <h3>Protocol And Sensor Templates</h3>
+              </div>
+            </div>
+            <div id="protocol-catalog-list" class="stack empty">Loading protocol catalog...</div>
           </section>
         </section>
 
