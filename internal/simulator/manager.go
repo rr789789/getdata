@@ -33,6 +33,7 @@ const (
 
 type CreateRequest struct {
 	Name                string
+	ProductID           string
 	Metadata            map[string]string
 	AutoConnect         bool
 	AutoAck             bool
@@ -101,7 +102,7 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (model.Simulato
 		deviceName = "simulated-device"
 	}
 
-	device, err := m.service.CreateDevice(ctx, deviceName, req.Metadata)
+	device, err := m.service.CreateDevice(ctx, deviceName, req.ProductID, req.Metadata)
 	if err != nil {
 		return model.SimulatorView{}, err
 	}
@@ -636,11 +637,13 @@ func compactJSON(value any) string {
 
 func cloneDevice(device model.Device) model.Device {
 	return model.Device{
-		ID:        device.ID,
-		Name:      device.Name,
-		Token:     device.Token,
-		Metadata:  cloneStringMap(device.Metadata),
-		CreatedAt: device.CreatedAt,
+		ID:         device.ID,
+		Name:       device.Name,
+		ProductID:  device.ProductID,
+		ProductKey: device.ProductKey,
+		Token:      device.Token,
+		Metadata:   cloneStringMap(device.Metadata),
+		CreatedAt:  device.CreatedAt,
 	}
 }
 

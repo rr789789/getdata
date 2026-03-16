@@ -41,8 +41,14 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealth)
 	mux.HandleFunc("/metrics", s.handleMetrics)
+	mux.HandleFunc("/api/v1/products", s.handleProducts)
+	mux.HandleFunc("/api/v1/products/", s.handleProductRoutes)
+	mux.HandleFunc("/api/v1/groups", s.handleGroups)
+	mux.HandleFunc("/api/v1/groups/", s.handleGroupRoutes)
 	mux.HandleFunc("/api/v1/devices", s.handleDevices)
 	mux.HandleFunc("/api/v1/devices/", s.handleDeviceRoutes)
+	mux.HandleFunc("/api/v1/rules", s.handleRules)
+	mux.HandleFunc("/api/v1/alerts", s.handleAlerts)
 	mux.HandleFunc("/api/v1/simulators", s.handleSimulators)
 	mux.HandleFunc("/api/v1/simulators/", s.handleSimulatorRoutes)
 	mux.Handle("/assets/", s.staticHandler())
@@ -130,6 +136,15 @@ func (s *Server) handleDeviceRoutes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch parts[1] {
+	case "shadow":
+		switch r.Method {
+		case http.MethodGet:
+			s.handleGetShadow(w, r, deviceID)
+		case http.MethodPut:
+			s.handleUpdateShadow(w, r, deviceID)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		}
 	case "telemetry":
 		if r.Method != http.MethodGet {
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -152,8 +167,9 @@ func (s *Server) handleDeviceRoutes(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateDevice(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Name     string            `json:"name"`
-		Metadata map[string]string `json:"metadata"`
+		Name      string            `json:"name"`
+		ProductID string            `json:"product_id"`
+		Metadata  map[string]string `json:"metadata"`
 	}
 
 	if err := decodeJSON(r, &request); err != nil {
@@ -161,9 +177,13 @@ func (s *Server) handleCreateDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	device, err := s.service.CreateDevice(r.Context(), request.Name, request.Metadata)
+	device, err := s.service.CreateDevice(r.Context(), request.Name, request.ProductID, request.Metadata)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		status := http.StatusInternalServerError
+		if errors.Is(err, store.ErrProductNotFound) {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
 		return
 	}
 
@@ -171,7 +191,8 @@ func (s *Server) handleCreateDevice(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
-	devices, err := s.service.ListDevices(r.Context())
+	productID := strings.TrimSpace(r.URL.Query().Get("product_id"))
+	devices, err := s.service.ListDevices(r.Context(), productID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -249,6 +270,44 @@ func (s *Server) handleSendCommand(w http.ResponseWriter, r *http.Request, devic
 	}
 
 	writeJSON(w, http.StatusAccepted, command)
+}
+
+func (s *Server) handleGetShadow(w http.ResponseWriter, r *http.Request, deviceID string) {
+	shadow, err := s.service.GetShadow(r.Context(), deviceID)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, store.ErrDeviceNotFound) {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, shadow)
+}
+
+func (s *Server) handleUpdateShadow(w http.ResponseWriter, r *http.Request, deviceID string) {
+	var request struct {
+		Desired map[string]any `json:"desired"`
+	}
+
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	shadow, err := s.service.UpdateDesiredShadow(r.Context(), deviceID, request.Desired)
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrDeviceNotFound):
+			writeError(w, http.StatusNotFound, err.Error())
+		default:
+			writeError(w, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, shadow)
 }
 
 func decodeJSON(r *http.Request, target any) error {

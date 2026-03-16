@@ -84,6 +84,7 @@ func (s *Server) handleSimulatorRoutes(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCreateSimulator(w http.ResponseWriter, r *http.Request) {
 	request := struct {
 		Name                string            `json:"name"`
+		ProductID           string            `json:"product_id"`
 		Metadata            map[string]string `json:"metadata"`
 		AutoConnect         bool              `json:"auto_connect"`
 		AutoAck             bool              `json:"auto_ack"`
@@ -106,6 +107,7 @@ func (s *Server) handleCreateSimulator(w http.ResponseWriter, r *http.Request) {
 
 	view, err := s.simulators.Create(r.Context(), simulator.CreateRequest{
 		Name:                request.Name,
+		ProductID:           request.ProductID,
 		Metadata:            request.Metadata,
 		AutoConnect:         request.AutoConnect,
 		AutoAck:             request.AutoAck,

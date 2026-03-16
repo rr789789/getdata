@@ -51,7 +51,19 @@ func TestServiceLifecycle(t *testing.T) {
 	service := newTestService()
 	ctx := context.Background()
 
-	device, err := service.CreateDevice(ctx, "sensor-a", map[string]string{"region": "cn"})
+	product, err := service.CreateProduct(ctx, "meter-product", "demo", nil, model.ThingModel{
+		Properties: []model.ThingModelProperty{
+			{Identifier: "temp", Name: "Temperature", DataType: "float"},
+		},
+		Services: []model.ThingModelService{
+			{Identifier: "reboot", Name: "Reboot"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateProduct() error = %v", err)
+	}
+
+	device, err := service.CreateDevice(ctx, "sensor-a", product.ID, map[string]string{"region": "cn"})
 	if err != nil {
 		t.Fatalf("CreateDevice() error = %v", err)
 	}
@@ -122,6 +134,25 @@ func TestServiceLifecycle(t *testing.T) {
 	if !view.Online {
 		t.Fatal("GetDevice() online = false, want true")
 	}
+	if view.Product == nil || view.Product.ID != product.ID {
+		t.Fatalf("device product = %#v, want product id %q", view.Product, product.ID)
+	}
+
+	shadow, err := service.GetShadow(ctx, device.ID)
+	if err != nil {
+		t.Fatalf("GetShadow() error = %v", err)
+	}
+	if got := shadow.Reported["temp"]; got != 25.5 {
+		t.Fatalf("shadow reported temp = %#v, want 25.5", got)
+	}
+
+	updatedShadow, err := service.UpdateDesiredShadow(ctx, device.ID, map[string]any{"temp": 26.0})
+	if err != nil {
+		t.Fatalf("UpdateDesiredShadow() error = %v", err)
+	}
+	if got := updatedShadow.Desired["temp"]; got != 26.0 {
+		t.Fatalf("shadow desired temp = %#v, want 26.0", got)
+	}
 
 	service.UnregisterSession(device.ID, session.SessionID())
 
@@ -146,7 +177,7 @@ func TestSendCommandOfflineMarksFailed(t *testing.T) {
 	service := newTestService()
 	ctx := context.Background()
 
-	device, err := service.CreateDevice(ctx, "sensor-b", nil)
+	device, err := service.CreateDevice(ctx, "sensor-b", "", nil)
 	if err != nil {
 		t.Fatalf("CreateDevice() error = %v", err)
 	}
@@ -160,8 +191,89 @@ func TestSendCommandOfflineMarksFailed(t *testing.T) {
 	}
 }
 
+func TestGroupRuleAlertFlow(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService()
+	ctx := context.Background()
+
+	product, err := service.CreateProduct(ctx, "boiler-product", "demo", nil, model.ThingModel{
+		Properties: []model.ThingModelProperty{
+			{Identifier: "temp", Name: "Temperature", DataType: "float"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateProduct() error = %v", err)
+	}
+
+	device, err := service.CreateDevice(ctx, "boiler-01", product.ID, nil)
+	if err != nil {
+		t.Fatalf("CreateDevice() error = %v", err)
+	}
+
+	group, err := service.CreateGroup(ctx, "north-room", "north room devices", product.ID, map[string]string{"floor": "2"})
+	if err != nil {
+		t.Fatalf("CreateGroup() error = %v", err)
+	}
+
+	groupView, err := service.AssignDeviceToGroup(ctx, group.ID, device.ID)
+	if err != nil {
+		t.Fatalf("AssignDeviceToGroup() error = %v", err)
+	}
+	if groupView.DeviceCount != 1 {
+		t.Fatalf("group device count = %d, want 1", groupView.DeviceCount)
+	}
+
+	rule, err := service.CreateRule(ctx, "high-temp", "temperature threshold", product.ID, group.ID, "", true, model.AlertSeverityCritical, 60, model.RuleCondition{
+		Property: "temp",
+		Operator: "gt",
+		Value:    30.0,
+	})
+	if err != nil {
+		t.Fatalf("CreateRule() error = %v", err)
+	}
+
+	baseTime := time.Now().UTC()
+	if err := service.HandleTelemetry(ctx, device.ID, baseTime, map[string]any{"temp": 31.5}); err != nil {
+		t.Fatalf("HandleTelemetry() first error = %v", err)
+	}
+	if err := service.HandleTelemetry(ctx, device.ID, baseTime.Add(30*time.Second), map[string]any{"temp": 32.1}); err != nil {
+		t.Fatalf("HandleTelemetry() cooldown error = %v", err)
+	}
+	if err := service.HandleTelemetry(ctx, device.ID, baseTime.Add(2*time.Minute), map[string]any{"temp": 33.7}); err != nil {
+		t.Fatalf("HandleTelemetry() second trigger error = %v", err)
+	}
+
+	alerts, err := service.ListAlerts(ctx, 10, "", "", device.ID, "")
+	if err != nil {
+		t.Fatalf("ListAlerts() error = %v", err)
+	}
+	if len(alerts) != 2 {
+		t.Fatalf("alerts len = %d, want 2", len(alerts))
+	}
+	if alerts[0].RuleID != rule.ID {
+		t.Fatalf("latest alert rule id = %q, want %q", alerts[0].RuleID, rule.ID)
+	}
+
+	view, err := service.GetDevice(ctx, device.ID)
+	if err != nil {
+		t.Fatalf("GetDevice() error = %v", err)
+	}
+	if len(view.Groups) != 1 || view.Groups[0].ID != group.ID {
+		t.Fatalf("device groups = %#v, want group %q", view.Groups, group.ID)
+	}
+
+	rules, err := service.ListRules(ctx)
+	if err != nil {
+		t.Fatalf("ListRules() error = %v", err)
+	}
+	if len(rules) != 1 || rules[0].TriggeredCount != 2 {
+		t.Fatalf("unexpected rule views: %#v", rules)
+	}
+}
+
 func newTestService() *core.Service {
 	storage := memory.New(16)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return core.NewService(storage, storage, storage, logger)
+	return core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, logger)
 }

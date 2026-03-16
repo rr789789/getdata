@@ -90,6 +90,214 @@ func TestDeviceAPIFlow(t *testing.T) {
 		body, _ := io.ReadAll(commandResp.Body)
 		t.Fatalf("POST /commands status = %d, want %d, body=%s", commandResp.StatusCode, http.StatusConflict, string(body))
 	}
+
+	shadowResp, err := http.Get(httpServer.URL + "/api/v1/devices/" + device.ID + "/shadow")
+	if err != nil {
+		t.Fatalf("GET /shadow error = %v", err)
+	}
+	defer shadowResp.Body.Close()
+
+	if shadowResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /shadow status = %d, want %d", shadowResp.StatusCode, http.StatusOK)
+	}
+}
+
+func TestProductAndShadowAPIFlow(t *testing.T) {
+	t.Parallel()
+
+	server := newTestServer()
+	httpServer := httptest.NewServer(server.Handler())
+	defer httpServer.Close()
+
+	productBody := []byte(`{
+		"name":"thermostat-product",
+		"description":"demo product",
+		"thing_model":{
+			"properties":[{"identifier":"temperature","name":"Temperature","data_type":"float","access_mode":"rw"}],
+			"services":[{"identifier":"reboot","name":"Reboot"}]
+		}
+	}`)
+
+	productResp, err := http.Post(httpServer.URL+"/api/v1/products", "application/json", bytes.NewReader(productBody))
+	if err != nil {
+		t.Fatalf("POST /api/v1/products error = %v", err)
+	}
+	defer productResp.Body.Close()
+
+	if productResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(productResp.Body)
+		t.Fatalf("POST /api/v1/products status = %d, want %d, body=%s", productResp.StatusCode, http.StatusCreated, string(body))
+	}
+
+	var product model.Product
+	if err := json.NewDecoder(productResp.Body).Decode(&product); err != nil {
+		t.Fatalf("decode product error = %v", err)
+	}
+
+	deviceBody := []byte(`{"name":"thermostat-01","product_id":"` + product.ID + `"}`)
+	deviceResp, err := http.Post(httpServer.URL+"/api/v1/devices", "application/json", bytes.NewReader(deviceBody))
+	if err != nil {
+		t.Fatalf("POST /api/v1/devices error = %v", err)
+	}
+	defer deviceResp.Body.Close()
+
+	if deviceResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(deviceResp.Body)
+		t.Fatalf("POST /api/v1/devices status = %d, want %d, body=%s", deviceResp.StatusCode, http.StatusCreated, string(body))
+	}
+
+	var device model.Device
+	if err := json.NewDecoder(deviceResp.Body).Decode(&device); err != nil {
+		t.Fatalf("decode device error = %v", err)
+	}
+	if device.ProductID != product.ID {
+		t.Fatalf("device.ProductID = %q, want %q", device.ProductID, product.ID)
+	}
+
+	updateShadowReq, err := http.NewRequest(http.MethodPut, httpServer.URL+"/api/v1/devices/"+device.ID+"/shadow", bytes.NewReader([]byte(`{"desired":{"temperature":26.3}}`)))
+	if err != nil {
+		t.Fatalf("new PUT /shadow request error = %v", err)
+	}
+	updateShadowReq.Header.Set("Content-Type", "application/json")
+
+	updateShadowResp, err := http.DefaultClient.Do(updateShadowReq)
+	if err != nil {
+		t.Fatalf("PUT /shadow error = %v", err)
+	}
+	defer updateShadowResp.Body.Close()
+
+	if updateShadowResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(updateShadowResp.Body)
+		t.Fatalf("PUT /shadow status = %d, want %d, body=%s", updateShadowResp.StatusCode, http.StatusOK, string(body))
+	}
+
+	productsResp, err := http.Get(httpServer.URL + "/api/v1/products")
+	if err != nil {
+		t.Fatalf("GET /api/v1/products error = %v", err)
+	}
+	defer productsResp.Body.Close()
+
+	if productsResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/v1/products status = %d, want %d", productsResp.StatusCode, http.StatusOK)
+	}
+
+	var products []model.ProductView
+	if err := json.NewDecoder(productsResp.Body).Decode(&products); err != nil {
+		t.Fatalf("decode product list error = %v", err)
+	}
+	if len(products) != 1 || products[0].DeviceCount != 1 {
+		t.Fatalf("unexpected product views: %#v", products)
+	}
+}
+
+func TestGroupAndRuleAPIFlow(t *testing.T) {
+	t.Parallel()
+
+	server := newTestServer()
+	httpServer := httptest.NewServer(server.Handler())
+	defer httpServer.Close()
+
+	productResp, err := http.Post(httpServer.URL+"/api/v1/products", "application/json", bytes.NewReader([]byte(`{
+		"name":"factory-product",
+		"thing_model":{"properties":[{"identifier":"temperature","name":"Temperature","data_type":"float"}]}
+	}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/products error = %v", err)
+	}
+	defer productResp.Body.Close()
+
+	var product model.Product
+	if err := json.NewDecoder(productResp.Body).Decode(&product); err != nil {
+		t.Fatalf("decode product error = %v", err)
+	}
+
+	deviceResp, err := http.Post(httpServer.URL+"/api/v1/devices", "application/json", bytes.NewReader([]byte(`{"name":"factory-01","product_id":"`+product.ID+`"}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/devices error = %v", err)
+	}
+	defer deviceResp.Body.Close()
+
+	var device model.Device
+	if err := json.NewDecoder(deviceResp.Body).Decode(&device); err != nil {
+		t.Fatalf("decode device error = %v", err)
+	}
+
+	groupResp, err := http.Post(httpServer.URL+"/api/v1/groups", "application/json", bytes.NewReader([]byte(`{
+		"name":"line-a",
+		"product_id":"`+product.ID+`",
+		"tags":{"site":"workshop"}
+	}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/groups error = %v", err)
+	}
+	defer groupResp.Body.Close()
+
+	if groupResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(groupResp.Body)
+		t.Fatalf("POST /api/v1/groups status = %d, want %d, body=%s", groupResp.StatusCode, http.StatusCreated, string(body))
+	}
+
+	var group model.DeviceGroup
+	if err := json.NewDecoder(groupResp.Body).Decode(&group); err != nil {
+		t.Fatalf("decode group error = %v", err)
+	}
+
+	assignResp, err := http.Post(httpServer.URL+"/api/v1/groups/"+group.ID+"/devices", "application/json", bytes.NewReader([]byte(`{"device_id":"`+device.ID+`"}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/groups/{id}/devices error = %v", err)
+	}
+	defer assignResp.Body.Close()
+
+	if assignResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(assignResp.Body)
+		t.Fatalf("POST /api/v1/groups/{id}/devices status = %d, want %d, body=%s", assignResp.StatusCode, http.StatusOK, string(body))
+	}
+
+	ruleResp, err := http.Post(httpServer.URL+"/api/v1/rules", "application/json", bytes.NewReader([]byte(`{
+		"name":"temp-high",
+		"product_id":"`+product.ID+`",
+		"group_id":"`+group.ID+`",
+		"severity":"critical",
+		"cooldown_seconds":30,
+		"condition":{"property":"temperature","operator":"gt","value":30}
+	}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/rules error = %v", err)
+	}
+	defer ruleResp.Body.Close()
+
+	if ruleResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(ruleResp.Body)
+		t.Fatalf("POST /api/v1/rules status = %d, want %d, body=%s", ruleResp.StatusCode, http.StatusCreated, string(body))
+	}
+
+	groupsResp, err := http.Get(httpServer.URL + "/api/v1/groups")
+	if err != nil {
+		t.Fatalf("GET /api/v1/groups error = %v", err)
+	}
+	defer groupsResp.Body.Close()
+
+	var groups []model.GroupView
+	if err := json.NewDecoder(groupsResp.Body).Decode(&groups); err != nil {
+		t.Fatalf("decode group list error = %v", err)
+	}
+	if len(groups) != 1 || groups[0].DeviceCount != 1 {
+		t.Fatalf("unexpected groups: %#v", groups)
+	}
+
+	rulesResp, err := http.Get(httpServer.URL + "/api/v1/rules")
+	if err != nil {
+		t.Fatalf("GET /api/v1/rules error = %v", err)
+	}
+	defer rulesResp.Body.Close()
+
+	var rules []model.RuleView
+	if err := json.NewDecoder(rulesResp.Body).Decode(&rules); err != nil {
+		t.Fatalf("decode rule list error = %v", err)
+	}
+	if len(rules) != 1 || rules[0].Rule.GroupID != group.ID {
+		t.Fatalf("unexpected rules: %#v", rules)
+	}
 }
 
 func TestUIEndpoints(t *testing.T) {
@@ -189,7 +397,7 @@ func TestSimulatorAPIFlow(t *testing.T) {
 func newTestServer() *api.Server {
 	storage := memory.New(16)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	service := core.NewService(storage, storage, storage, logger)
+	service := core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, logger)
 	simulators := simulator.NewManager(config.Config{GatewayDialAddr: "127.0.0.1:18830"}, service, logger)
 	return api.NewServer(config.Config{GatewayDialAddr: "127.0.0.1:18830"}, service, simulators, logger)
 }

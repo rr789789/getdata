@@ -21,8 +21,8 @@
       <div class="topbar-main">
         <p class="eyebrow">MVP IoT Platform</p>
         <div class="topbar-title">
-          <h1>Device Cloud Lab</h1>
-          <span class="platform-pill">Single Binary Console</span>
+          <h1>Device Cloud Console</h1>
+          <span class="platform-pill">Single Binary Runtime</span>
         </div>
       </div>
       <div class="runtime-pill">
@@ -33,20 +33,20 @@
 
     <section class="hero-card">
       <div class="hero-copy">
-        <p class="hero-kicker">Apple-inspired local console</p>
-        <h2>设备控制台与模拟器实验台</h2>
-        <p class="copy">同一个可执行文件内完成设备管理、遥测查看、命令下发，以及真实 TCP 接入链路的 UI 设备模拟测试。</p>
+        <p class="hero-kicker">Alibaba Cloud inspired control plane</p>
+        <h2>Product, Fleet, Group, Rule, Alert</h2>
+        <p class="copy">在同一个可执行文件里完成产品建模、设备接入、分组编排、规则告警和设备模拟，适合作为物联网平台最小控制台。</p>
       </div>
       <div class="hero-glance">
         <article class="glance-card">
-          <span class="glance-label">管理台</span>
+          <span class="glance-label">Control Plane</span>
           <strong>HTTP 8080</strong>
-          <small>查看设备、指标、命令和模拟器</small>
+          <small>Products, devices, groups, rules, alerts and simulator console.</small>
         </article>
         <article class="glance-card">
-          <span class="glance-label">接入网关</span>
+          <span class="glance-label">Gateway</span>
           <strong>TCP 18830</strong>
-          <small>模拟器走真实设备接入协议链路</small>
+          <small>Real device protocol path for auth, ping, telemetry and command ack.</small>
         </article>
       </div>
     </section>
@@ -56,31 +56,83 @@
         <div class="section-head">
           <div>
             <p class="section-kicker">Runtime</p>
-            <h3>运行概览</h3>
+            <h3>Overview</h3>
           </div>
-          <button id="refresh-button" class="button ghost">刷新</button>
+          <button id="refresh-button" class="button ghost" type="button">Refresh</button>
         </div>
         <div id="stats-grid" class="stats-grid"></div>
+      </section>
+
+      <section class="panel span-12">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Product</p>
+            <h3>Product And Thing Model</h3>
+          </div>
+          <span id="product-count" class="chip">0</span>
+        </div>
+        <div class="product-workbench">
+          <form id="product-form" class="grid-form">
+            <label>
+              <span>Product Name</span>
+              <input id="product-name" type="text" placeholder="thermostat-product">
+            </label>
+            <label>
+              <span>Description</span>
+              <input id="product-description" type="text" placeholder="Smart thermostat product">
+            </label>
+            <label class="wide">
+              <span>Metadata JSON</span>
+              <textarea id="product-metadata" rows="3">{"category":"demo","node_type":"directDevice"}</textarea>
+            </label>
+            <label class="wide">
+              <span>Thing Model JSON</span>
+              <textarea id="product-thing-model" rows="8">{
+  "properties": [
+    {"identifier":"temperature","name":"Temperature","data_type":"float","access_mode":"rw"},
+    {"identifier":"humidity","name":"Humidity","data_type":"float","access_mode":"r"}
+  ],
+  "services": [
+    {"identifier":"reboot","name":"Reboot"}
+  ],
+  "events": [
+    {"identifier":"alarm","name":"Alarm"}
+  ]
+}</textarea>
+            </label>
+            <div class="actions wide">
+              <button class="button primary" type="submit">Create Product</button>
+              <span id="product-status" class="hint"></span>
+            </div>
+          </form>
+          <div id="product-list" class="stack empty">No products yet.</div>
+        </div>
       </section>
 
       <section class="panel span-4">
         <div class="section-head">
           <div>
             <p class="section-kicker">Provision</p>
-            <h3>注册设备</h3>
+            <h3>Create Device</h3>
           </div>
         </div>
         <form id="device-form" class="grid-form">
           <label>
-            <span>设备名称</span>
-            <input id="device-name" type="text" placeholder="例如 edge-sensor-01">
+            <span>Device Name</span>
+            <input id="device-name" type="text" placeholder="edge-sensor-01">
+          </label>
+          <label>
+            <span>Product</span>
+            <select id="device-product-id">
+              <option value="">Unbound</option>
+            </select>
           </label>
           <label class="wide">
-            <span>元数据 JSON</span>
+            <span>Metadata JSON</span>
             <textarea id="device-metadata" rows="4">{"site":"lab","model":"demo-v1"}</textarea>
           </label>
           <div class="actions wide">
-            <button class="button primary" type="submit">创建设备</button>
+            <button class="button primary" type="submit">Create Device</button>
             <span id="device-status" class="hint"></span>
           </div>
         </form>
@@ -90,59 +142,189 @@
         <div class="section-head">
           <div>
             <p class="section-kicker">Fleet</p>
-            <h3>设备列表</h3>
+            <h3>Device List</h3>
           </div>
           <span id="device-count" class="chip">0</span>
         </div>
-        <div id="device-list" class="stack empty">暂无设备</div>
+        <div id="device-list" class="stack empty">No devices yet.</div>
       </section>
 
       <section class="panel span-4">
         <div class="section-head">
           <div>
             <p class="section-kicker">Detail</p>
-            <h3>设备详情</h3>
+            <h3>Selected Device</h3>
           </div>
-          <span id="selected-device-name" class="chip">未选择</span>
+          <span id="selected-device-name" class="chip">Unselected</span>
         </div>
-        <div id="device-detail" class="stack empty">选择一个设备查看详情。</div>
+        <div id="device-detail" class="stack empty">Select a device to inspect shadow, commands and alerts.</div>
+      </section>
+
+      <section class="panel span-6">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Group</p>
+            <h3>Static Device Groups</h3>
+          </div>
+          <span id="group-count" class="chip">0</span>
+        </div>
+        <div class="group-workbench">
+          <form id="group-form" class="grid-form">
+            <label>
+              <span>Group Name</span>
+              <input id="group-name" type="text" placeholder="line-a">
+            </label>
+            <label>
+              <span>Bound Product</span>
+              <select id="group-product-id">
+                <option value="">Any product</option>
+              </select>
+            </label>
+            <label class="wide">
+              <span>Description</span>
+              <input id="group-description" type="text" placeholder="Assembly line A">
+            </label>
+            <label class="wide">
+              <span>Tags JSON</span>
+              <textarea id="group-tags" rows="3">{"site":"factory-1","line":"A"}</textarea>
+            </label>
+            <div class="actions wide">
+              <button class="button primary" type="submit">Create Group</button>
+              <span id="group-status" class="hint"></span>
+            </div>
+          </form>
+          <div id="group-list" class="stack empty">No groups yet.</div>
+        </div>
+      </section>
+
+      <section class="panel span-6">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Rule</p>
+            <h3>Threshold Rules</h3>
+          </div>
+          <span id="rule-count" class="chip">0</span>
+        </div>
+        <div class="rule-workbench">
+          <form id="rule-form" class="grid-form">
+            <label>
+              <span>Rule Name</span>
+              <input id="rule-name" type="text" placeholder="temperature-high">
+            </label>
+            <label>
+              <span>Severity</span>
+              <select id="rule-severity">
+                <option value="warning">warning</option>
+                <option value="critical">critical</option>
+                <option value="info">info</option>
+              </select>
+            </label>
+            <label>
+              <span>Product Scope</span>
+              <select id="rule-product-id">
+                <option value="">Auto</option>
+              </select>
+            </label>
+            <label>
+              <span>Group Scope</span>
+              <select id="rule-group-id">
+                <option value="">Optional</option>
+              </select>
+            </label>
+            <label>
+              <span>Device Scope</span>
+              <select id="rule-device-id">
+                <option value="">Optional</option>
+              </select>
+            </label>
+            <label>
+              <span>Cooldown Seconds</span>
+              <input id="rule-cooldown" type="number" min="0" step="1" value="60">
+            </label>
+            <label>
+              <span>Property</span>
+              <input id="rule-property" type="text" placeholder="temperature">
+            </label>
+            <label>
+              <span>Operator</span>
+              <select id="rule-operator">
+                <option value="gt">&gt;</option>
+                <option value="gte">&gt;=</option>
+                <option value="lt">&lt;</option>
+                <option value="lte">&lt;=</option>
+                <option value="eq">=</option>
+                <option value="neq">!=</option>
+              </select>
+            </label>
+            <label>
+              <span>Threshold</span>
+              <input id="rule-threshold" type="text" placeholder="30">
+            </label>
+            <label class="wide">
+              <span>Description</span>
+              <input id="rule-description" type="text" placeholder="Alert when temperature is higher than 30">
+            </label>
+            <div class="actions wide">
+              <button class="button primary" type="submit">Create Rule</button>
+              <span id="rule-status" class="hint"></span>
+            </div>
+          </form>
+          <div id="rule-list" class="stack empty">No rules yet.</div>
+        </div>
+      </section>
+
+      <section class="panel span-12">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Alert</p>
+            <h3>Recent Alert Events</h3>
+          </div>
+          <span id="alert-count" class="chip">0</span>
+        </div>
+        <div id="alert-list" class="stack empty">No alerts yet.</div>
       </section>
 
       <section class="panel span-12">
         <div class="section-head">
           <div>
             <p class="section-kicker">Simulator</p>
-            <h3>设备模拟器</h3>
+            <h3>Device Simulator</h3>
           </div>
-          <span class="chip">真实 TCP 网关</span>
+          <span class="chip">Real TCP gateway path</span>
         </div>
         <form id="sim-form" class="grid-form">
           <label>
-            <span>模拟器设备名</span>
-            <input id="sim-name" type="text" placeholder="例如 virtual-meter-01">
+            <span>Simulator Device Name</span>
+            <input id="sim-name" type="text" placeholder="virtual-meter-01">
           </label>
           <label>
-            <span>遥测间隔 ms</span>
+            <span>Telemetry Interval ms</span>
             <input id="sim-interval" type="number" min="1000" step="1000" value="5000">
           </label>
-          <label class="toggle"><input id="sim-auto-connect" type="checkbox" checked><span>自动连接</span></label>
-          <label class="toggle"><input id="sim-auto-ack" type="checkbox" checked><span>自动回执</span></label>
-          <label class="toggle"><input id="sim-auto-ping" type="checkbox" checked><span>自动心跳</span></label>
-          <label class="toggle"><input id="sim-auto-telemetry" type="checkbox" checked><span>自动遥测</span></label>
+          <label>
+            <span>Product</span>
+            <select id="sim-product-id">
+              <option value="">Unbound</option>
+            </select>
+          </label>
+          <label class="toggle"><input id="sim-auto-connect" type="checkbox" checked><span>Auto connect</span></label>
+          <label class="toggle"><input id="sim-auto-ack" type="checkbox" checked><span>Auto ack</span></label>
+          <label class="toggle"><input id="sim-auto-ping" type="checkbox" checked><span>Auto ping</span></label>
+          <label class="toggle"><input id="sim-auto-telemetry" type="checkbox" checked><span>Auto telemetry</span></label>
           <label class="wide">
-            <span>默认遥测 JSON</span>
+            <span>Default Telemetry JSON</span>
             <textarea id="sim-values" rows="4">{"temperature":24.2,"humidity":58,"voltage":3.28}</textarea>
           </label>
           <label class="wide">
-            <span>元数据 JSON</span>
+            <span>Metadata JSON</span>
             <textarea id="sim-metadata" rows="3">{"site":"virtual-lab","model":"simulator"}</textarea>
           </label>
           <div class="actions wide">
-            <button class="button accent" type="submit">创建模拟器</button>
+            <button class="button accent" type="submit">Create Simulator</button>
             <span id="sim-status" class="hint"></span>
           </div>
         </form>
-        <div id="sim-list" class="stack empty">暂无模拟器</div>
+        <div id="sim-list" class="stack empty">No simulators yet.</div>
       </section>
     </main>
   </div>
