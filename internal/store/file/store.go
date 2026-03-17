@@ -21,6 +21,7 @@ type Store struct {
 	persistMu       sync.Mutex
 	lastPersistedAt time.Time
 	persistErrors   int64
+	afterPersist    func(context.Context, []byte)
 }
 
 type persistedSnapshot struct {
@@ -81,8 +82,8 @@ func (s *Store) load() error {
 		return err
 	}
 
-	var snapshot persistedSnapshot
-	if err := json.Unmarshal(data, &snapshot); err != nil {
+	snapshot, err := decodeSnapshot(data)
+	if err != nil {
 		return err
 	}
 
@@ -93,14 +94,34 @@ func (s *Store) load() error {
 	return nil
 }
 
-func (s *Store) persist() error {
+func (s *Store) SetAfterPersistHook(hook func(context.Context, []byte)) {
 	s.persistMu.Lock()
 	defer s.persistMu.Unlock()
+	s.afterPersist = hook
+}
 
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
-		s.persistErrors++
+func (s *Store) ApplyReplicaSnapshot(data []byte) error {
+	snapshot, err := decodeSnapshot(data)
+	if err != nil {
 		return err
 	}
+
+	s.mutateMu.Lock()
+	defer s.mutateMu.Unlock()
+
+	s.persistMu.Lock()
+	err = s.writeSnapshotFile(data, snapshot.SavedAt)
+	s.persistMu.Unlock()
+	if err != nil {
+		return err
+	}
+	s.inner.Restore(snapshot.Snapshot)
+	return nil
+}
+
+func (s *Store) persist() ([]byte, error) {
+	s.persistMu.Lock()
+	defer s.persistMu.Unlock()
 
 	snapshot := persistedSnapshot{
 		Version:  1,
@@ -110,6 +131,19 @@ func (s *Store) persist() error {
 
 	data, err := json.MarshalIndent(snapshot, "", "  ")
 	if err != nil {
+		s.persistErrors++
+		return nil, err
+	}
+
+	if err := s.writeSnapshotFile(data, snapshot.SavedAt); err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func (s *Store) writeSnapshotFile(data []byte, savedAt time.Time) error {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		s.persistErrors++
 		return err
 	}
@@ -146,7 +180,7 @@ func (s *Store) persist() error {
 		return err
 	}
 
-	s.lastPersistedAt = snapshot.SavedAt
+	s.lastPersistedAt = savedAt.UTC()
 	return nil
 }
 
@@ -158,11 +192,27 @@ func (s *Store) mutate(apply func() error) error {
 	if err := apply(); err != nil {
 		return err
 	}
-	if err := s.persist(); err != nil {
+	data, err := s.persist()
+	if err != nil {
 		s.inner.Restore(rollback)
 		return err
 	}
+	s.persistMu.Lock()
+	hook := s.afterPersist
+	s.persistMu.Unlock()
+	if hook != nil {
+		snapshot := append([]byte(nil), data...)
+		go hook(context.Background(), snapshot)
+	}
 	return nil
+}
+
+func decodeSnapshot(data []byte) (persistedSnapshot, error) {
+	var snapshot persistedSnapshot
+	if err := json.Unmarshal(data, &snapshot); err != nil {
+		return persistedSnapshot{}, err
+	}
+	return snapshot, nil
 }
 
 func (s *Store) CreateTenant(ctx context.Context, tenant model.Tenant) error {

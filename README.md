@@ -1,5 +1,9 @@
 # MVP IoT Platform
 
+## Split Deployment
+
+- Standalone backend, web admin, and desktop launcher: [doc/frontend-backend-split.md](doc/frontend-backend-split.md)
+
 一个面向设备接入场景的最小可运行物联网平台。
 
 当前版本已经覆盖一条完整的基础链路：

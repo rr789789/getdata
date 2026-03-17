@@ -7,6 +7,48 @@ const VIEW_TITLE_KEYS = {
   simulator: "nav_simulator",
 };
 
+const runtimeConfig = resolveRuntimeConfig();
+const API_BASE_URL = normalizeBaseURL(runtimeConfig.api_base_url || "");
+
+function resolveRuntimeConfig() {
+  const config = window.__MVP_RUNTIME_CONFIG__ || {};
+  return typeof config === "object" && config !== null ? config : {};
+}
+
+function normalizeBaseURL(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+  return raw.replace(/\/+$/, "");
+}
+
+function resolveAPIURL(path) {
+  const raw = String(path || "").trim();
+  if (!raw) {
+    return raw;
+  }
+  if (/^[a-z]+:\/\//i.test(raw)) {
+    return raw;
+  }
+  if (!API_BASE_URL) {
+    return raw;
+  }
+  return raw.startsWith("/") ? `${API_BASE_URL}${raw}` : `${API_BASE_URL}/${raw}`;
+}
+
+function buildHTTPIngestPath(deviceID) {
+  return resolveAPIURL(`/api/v1/ingest/http/${encodeURIComponent(deviceID)}`);
+}
+
+function runtimeModeLabel() {
+  const mode = runtimeConfig.desktop_mode
+    ? (appState.locale === "zh" ? "桌面端" : "Desktop")
+    : (appState.locale === "zh" ? "Web后台" : "Web Admin");
+  const target = API_BASE_URL || (appState.locale === "zh" ? "同源 API" : "Embedded API");
+  return `${mode} | ${target}`;
+}
+
 const I18N = {
   zh: {
     app_title: "MVP IoT 控制台",
@@ -227,7 +269,7 @@ function t(key, variables = {}) {
 }
 
 async function requestJSON(path, options = {}) {
-  const response = await fetch(path, {
+  const response = await fetch(resolveAPIURL(path), {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     ...options,
   });
@@ -327,11 +369,12 @@ function setPlaceholder(id, value) {
 
 function applyTranslations() {
   document.documentElement.lang = appState.locale === "zh" ? "zh-CN" : "en";
-  document.title = t("app_title");
+  document.title = runtimeConfig.app_title || t("app_title");
 
   setText("#locale-toggle", t("locale_button"));
   setText("#refresh-button", t("refresh"));
   setText("#health-text", appState.health?.status === "ok" ? t("runtime_healthy", { time: formatTime(appState.health.time) }) : t("runtime_loading"));
+  setText("#platform-pill", runtimeModeLabel());
 
   const viewTitle = document.getElementById("view-title");
   if (viewTitle) {
@@ -978,7 +1021,7 @@ async function refreshSelectedDevice() {
         protocol: accessProfile.protocol || "tcp_json",
         ingest_mode: accessProfile.ingest_mode || "gateway_tcp",
         payload_format: accessProfile.payload_format || "json_values",
-        http_push_path: `/api/v1/ingest/http/${device.device.id}`,
+        http_push_path: buildHTTPIngestPath(device.device.id),
       }))}</pre>
       <pre>${escapeHTML(pretty(device.device.metadata || {}))}</pre>
     </article>

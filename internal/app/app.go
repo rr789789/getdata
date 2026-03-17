@@ -53,13 +53,26 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	options := &appOptions{}
+	for _, option := range configureReplication(cfg, storage, logger) {
+		if option != nil {
+			option(options)
+		}
+	}
+
 	service := core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, logger.With("component", "core"))
 	simulators := simulator.NewManager(cfg, service, logger.With("component", "simulator"))
+
+	apiOptions := make([]api.ServerOption, 0, 1)
+	if options.enableReplicaApplier != nil {
+		apiOptions = append(apiOptions, api.WithReplicaApplier(options.enableReplicaApplier))
+	}
 
 	return &App{
 		cfg:        cfg,
 		logger:     logger,
-		api:        api.NewServer(cfg, service, simulators, logger.With("component", "api")),
+		api:        api.NewServer(cfg, service, simulators, logger.With("component", "api"), apiOptions...),
 		gateway:    gateway.NewServer(cfg, service, logger.With("component", "gateway")),
 		mqtt:       mqtt.NewServer(cfg, service, logger.With("component", "mqtt")),
 		simulators: simulators,
@@ -88,8 +101,12 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	start("http-api", a.api.Run)
-	start("device-gateway", a.gateway.Run)
-	start("mqtt-broker", a.mqtt.Run)
+	if a.cfg.IsStandby() {
+		a.logger.Info("standby node started without gateway and mqtt listeners", "node_id", a.cfg.NodeID)
+	} else {
+		start("device-gateway", a.gateway.Run)
+		start("mqtt-broker", a.mqtt.Run)
+	}
 
 	var runErr error
 	select {

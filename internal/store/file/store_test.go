@@ -159,3 +159,56 @@ func TestFileStoreConcurrentMutations(t *testing.T) {
 		t.Fatalf("reloaded device count = %d, want %d", len(devices), deviceCount)
 	}
 }
+
+func TestFileStoreAppliesReplicaSnapshot(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	primaryPath := filepath.Join(t.TempDir(), "primary.json")
+	standbyPath := filepath.Join(t.TempDir(), "standby.json")
+
+	primary, err := storefile.New(primaryPath, 16)
+	if err != nil {
+		t.Fatalf("primary New() error = %v", err)
+	}
+	standby, err := storefile.New(standbyPath, 16)
+	if err != nil {
+		t.Fatalf("standby New() error = %v", err)
+	}
+
+	snapshotCh := make(chan []byte, 1)
+	primary.SetAfterPersistHook(func(_ context.Context, data []byte) {
+		snapshotCh <- append([]byte(nil), data...)
+	})
+
+	product := model.Product{
+		ID:         "prd-replica",
+		Key:        "pk-replica",
+		Name:       "replica-product",
+		ThingModel: model.ThingModel{Version: 1},
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+	}
+	if err := primary.CreateProduct(ctx, product); err != nil {
+		t.Fatalf("CreateProduct() error = %v", err)
+	}
+
+	var snapshot []byte
+	select {
+	case snapshot = <-snapshotCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for persisted snapshot")
+	}
+
+	if err := standby.ApplyReplicaSnapshot(snapshot); err != nil {
+		t.Fatalf("ApplyReplicaSnapshot() error = %v", err)
+	}
+
+	got, err := standby.GetProduct(ctx, product.ID)
+	if err != nil {
+		t.Fatalf("standby GetProduct() error = %v", err)
+	}
+	if got.Name != product.Name {
+		t.Fatalf("standby product name = %q, want %q", got.Name, product.Name)
+	}
+}

@@ -579,6 +579,115 @@ func TestUIEndpoints(t *testing.T) {
 	if advancedResp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /assets/advanced.js status = %d, want %d", advancedResp.StatusCode, http.StatusOK)
 	}
+
+	configResp, err := http.Get(httpServer.URL + "/runtime-config.js")
+	if err != nil {
+		t.Fatalf("GET /runtime-config.js error = %v", err)
+	}
+	defer configResp.Body.Close()
+
+	if configResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /runtime-config.js status = %d, want %d", configResp.StatusCode, http.StatusOK)
+	}
+
+	configBody, _ := io.ReadAll(configResp.Body)
+	if !strings.Contains(string(configBody), "window.__MVP_RUNTIME_CONFIG__") {
+		t.Fatalf("runtime config body missing config bootstrap: %s", string(configBody))
+	}
+}
+
+func TestCORSAndStandbyGuard(t *testing.T) {
+	t.Parallel()
+
+	storage := memory.New(16)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	service := core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, logger)
+	simulators := simulator.NewManager(config.Config{GatewayDialAddr: "127.0.0.1:18830"}, service, logger)
+	server := api.NewServer(config.Config{
+		GatewayDialAddr:     "127.0.0.1:18830",
+		NodeID:              "standby-a",
+		NodeRole:            "standby",
+		CORSAllowedOrigins:  []string{"http://console.local"},
+	}, service, simulators, logger)
+
+	httpServer := httptest.NewServer(server.Handler())
+	defer httpServer.Close()
+
+	req, err := http.NewRequest(http.MethodOptions, httpServer.URL+"/api/v1/devices", nil)
+	if err != nil {
+		t.Fatalf("NewRequest(OPTIONS) error = %v", err)
+	}
+	req.Header.Set("Origin", "http://console.local")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("OPTIONS /api/v1/devices error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("OPTIONS /api/v1/devices status = %d, want %d", resp.StatusCode, http.StatusNoContent)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "http://console.local" {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, "http://console.local")
+	}
+
+	readyResp, err := http.Get(httpServer.URL + "/readyz")
+	if err != nil {
+		t.Fatalf("GET /readyz error = %v", err)
+	}
+	defer readyResp.Body.Close()
+	if readyResp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("GET /readyz status = %d, want %d", readyResp.StatusCode, http.StatusServiceUnavailable)
+	}
+
+	createResp, err := http.Post(httpServer.URL+"/api/v1/devices", "application/json", bytes.NewReader([]byte(`{"name":"blocked"}`)))
+	if err != nil {
+		t.Fatalf("POST /api/v1/devices error = %v", err)
+	}
+	defer createResp.Body.Close()
+
+	if createResp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("POST /api/v1/devices status = %d, want %d", createResp.StatusCode, http.StatusServiceUnavailable)
+	}
+}
+
+func TestReplicaSnapshotEndpoint(t *testing.T) {
+	t.Parallel()
+
+	storage := memory.New(16)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	service := core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, logger)
+	recorder := &replicaRecorder{}
+	server := api.NewServer(config.Config{
+		NodeID:             "standby-b",
+		NodeRole:           "standby",
+		ReplicaToken:       "secret-token",
+		CORSAllowedOrigins: []string{"*"},
+	}, service, nil, logger, api.WithReplicaApplier(recorder))
+
+	httpServer := httptest.NewServer(server.Handler())
+	defer httpServer.Close()
+
+	req, err := http.NewRequest(http.MethodPut, httpServer.URL+"/_ha/snapshot", bytes.NewReader([]byte(`{"version":1}`)))
+	if err != nil {
+		t.Fatalf("NewRequest(replica) error = %v", err)
+	}
+	req.Header.Set("X-Replica-Token", "secret-token")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT /_ha/snapshot error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("PUT /_ha/snapshot status = %d, want %d, body=%s", resp.StatusCode, http.StatusAccepted, string(body))
+	}
+	if string(recorder.payload) != `{"version":1}` {
+		t.Fatalf("replica payload = %q, want %q", string(recorder.payload), `{"version":1}`)
+	}
 }
 
 func TestMetricsEndpoints(t *testing.T) {
@@ -770,6 +879,10 @@ type testSession struct {
 	id string
 }
 
+type replicaRecorder struct {
+	payload []byte
+}
+
 func (s *testSession) SessionID() string {
 	return s.id
 }
@@ -779,6 +892,11 @@ func (s *testSession) Send(model.ServerMessage) error {
 }
 
 func (s *testSession) Close() error {
+	return nil
+}
+
+func (r *replicaRecorder) ApplyReplicaSnapshot(payload []byte) error {
+	r.payload = append([]byte(nil), payload...)
 	return nil
 }
 

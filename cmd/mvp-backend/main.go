@@ -15,6 +15,8 @@ import (
 
 func main() {
 	cfg := config.Load()
+	cfg.DisableEmbeddedUI = true
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: parseLogLevel(cfg.LogLevel),
 	})).With("node_id", cfg.NodeID, "role", cfg.NodeRole)
@@ -24,11 +26,11 @@ func main() {
 
 	application, err := app.New(cfg, logger)
 	if err != nil {
-		logger.Error("failed to initialize application", "error", err)
+		logger.Error("failed to initialize backend application", "error", err)
 		os.Exit(1)
 	}
 	if err := application.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-		logger.Error("application stopped with error", "error", err)
+		logger.Error("backend application stopped with error", "error", err)
 		os.Exit(1)
 	}
 }

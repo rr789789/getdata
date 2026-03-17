@@ -17,6 +17,7 @@ import (
 	"mvp-platform/internal/model"
 	"mvp-platform/internal/simulator"
 	"mvp-platform/internal/store"
+	"mvp-platform/internal/util"
 )
 
 type Server struct {
@@ -24,25 +25,50 @@ type Server struct {
 	service    *core.Service
 	simulators *simulator.Manager
 	logger     *slog.Logger
+	ui         http.Handler
+	replica    replicaApplier
 }
 
-func NewServer(cfg config.Config, service *core.Service, simulators *simulator.Manager, logger *slog.Logger) *Server {
+type replicaApplier interface {
+	ApplyReplicaSnapshot([]byte) error
+}
+
+type ServerOption func(*Server)
+
+func WithReplicaApplier(applier replicaApplier) ServerOption {
+	return func(server *Server) {
+		server.replica = applier
+	}
+}
+
+func NewServer(cfg config.Config, service *core.Service, simulators *simulator.Manager, logger *slog.Logger, options ...ServerOption) *Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	return &Server{
+	server := &Server{
 		cfg:        cfg,
 		service:    service,
 		simulators: simulators,
 		logger:     logger,
 	}
+	if !cfg.DisableEmbeddedUI {
+		server.ui = NewUIHandler(UIOptions{AppTitle: "MVP IoT Console"})
+	}
+	for _, option := range options {
+		if option != nil {
+			option(server)
+		}
+	}
+	return server
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealth)
+	mux.HandleFunc("/readyz", s.handleReady)
 	mux.HandleFunc("/metrics", s.handleMetrics)
+	mux.HandleFunc("/api/v1/system/info", s.handleSystemInfo)
 	mux.HandleFunc("/api/v1/protocol-catalog", s.handleProtocolCatalog)
 	mux.HandleFunc("/api/v1/tenants", s.handleTenants)
 	mux.HandleFunc("/api/v1/ingest/http/", s.handleHTTPIngestRoutes)
@@ -61,9 +87,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/alerts/", s.handleAlertRoutes)
 	mux.HandleFunc("/api/v1/simulators", s.handleSimulators)
 	mux.HandleFunc("/api/v1/simulators/", s.handleSimulatorRoutes)
-	mux.Handle("/assets/", s.staticHandler())
-	mux.HandleFunc("/", s.handleIndex)
-	return s.instrument(mux)
+	if s.replica != nil {
+		mux.HandleFunc("/_ha/snapshot", s.handleReplicaSnapshot)
+	}
+	if s.ui != nil {
+		mux.Handle("/assets/", s.ui)
+		mux.Handle("/runtime-config.js", s.ui)
+		mux.Handle("/", s.ui)
+	}
+	return s.instrument(s.withCORS(s.withStandbyGuard(mux)))
 }
 
 func (s *Server) Run(ctx context.Context) error {
@@ -95,8 +127,10 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status": "ok",
-		"time":   time.Now().UTC(),
+		"status":  "ok",
+		"time":    time.Now().UTC(),
+		"node_id": s.cfg.NodeID,
+		"role":    normalizedNodeRole(s.cfg.NodeRole),
 	})
 }
 
@@ -419,13 +453,30 @@ func (r *statusRecorder) Write(payload []byte) (int, error) {
 
 func (s *Server) instrument(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		startedAt := time.Now()
+		requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
+		if requestID == "" {
+			requestID = util.NewID("req")
+		}
+
 		recorder := &statusRecorder{ResponseWriter: w}
+		recorder.Header().Set("X-Request-ID", requestID)
 		next.ServeHTTP(recorder, r)
 		status := recorder.status
 		if status == 0 {
 			status = http.StatusOK
 		}
 		s.service.RecordHTTPRequest(status)
+		s.logger.Info(
+			"http request completed",
+			"request_id", requestID,
+			"method", r.Method,
+			"path", r.URL.Path,
+			"query", r.URL.RawQuery,
+			"status", status,
+			"duration_ms", time.Since(startedAt).Milliseconds(),
+			"remote_addr", clientIP(r),
+		)
 	})
 }
 
