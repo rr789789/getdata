@@ -14,9 +14,9 @@
   <div class="console-shell">
     <aside class="console-sidebar">
       <div class="brand-block">
-        <p class="eyebrow">SagooIoT Inspired</p>
-        <h1>IoT Console</h1>
-        <p class="subtle">Single binary control plane for product, fleet, rules and simulator workflows.</p>
+        <p class="eyebrow">Gitea-Inspired Ops</p>
+        <h1>IoT Admin</h1>
+        <p class="subtle">Installation-first operations console for tenant, product, device, alert and transport administration.</p>
       </div>
 
       <nav class="nav-stack">
@@ -58,20 +58,20 @@
         <section class="view-section active" data-view="overview">
           <section class="hero-card">
             <div class="hero-copy">
-              <p class="hero-kicker">Enterprise operation console</p>
-              <h3>Product modeling, fleet governance and simulator testing in one place</h3>
-              <p class="copy">This console follows the control-plane style of SagooIoT: sidebar navigation, overview dashboard, fleet governance, rule and alert handling, and reusable configuration profiles.</p>
+              <p class="hero-kicker">Admin Backend</p>
+              <h3>Install-first IoT control plane with products, fleet, governance and runtime operations</h3>
+              <p class="copy">This backend now follows a denser operations-console layout: first-run installation, system summary, left navigation, runtime overview, and table-first management for products, devices, alerts and OTA.</p>
             </div>
             <div class="hero-glance">
               <article class="glance-card">
-                <span class="glance-label">Control Plane</span>
-                <strong>Product / Device / Rule</strong>
-                <small>Manage thing models, fleet groups, config profiles and alert lifecycle.</small>
+                <span class="glance-label">Admin Scope</span>
+                <strong>Tenant / Product / Device</strong>
+                <small>Manage thing models, tenant workspaces, fleet groups, config profiles and alert lifecycle.</small>
               </article>
               <article class="glance-card">
-                <span class="glance-label">Gateway Path</span>
-                <strong>Auth / Ping / Telemetry</strong>
-                <small>Simulators still use the real TCP gateway path instead of fake UI-only mock traffic.</small>
+                <span class="glance-label">Bootstrap</span>
+                <strong>Install / Role / Runtime</strong>
+                <small>Surface installation status, node role, store backend and transport availability like an admin backend.</small>
               </article>
             </div>
           </section>
@@ -106,6 +106,16 @@
               </div>
               <div id="overview-alert-list" class="stack empty">No alerts yet.</div>
             </section>
+          </section>
+
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <p id="system-kicker" class="section-kicker">System</p>
+                <h3 id="system-title">Instance Summary</h3>
+              </div>
+            </div>
+            <div id="system-summary" class="detail-meta-grid empty">Loading system info...</div>
           </section>
         </section>
 

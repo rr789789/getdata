@@ -3,6 +3,7 @@
 ## Split Deployment
 
 - Standalone backend, web admin, and desktop launcher: [doc/frontend-backend-split.md](doc/frontend-backend-split.md)
+- Gitea-inspired backend architecture analysis: [doc/gitea-inspired-architecture.md](doc/gitea-inspired-architecture.md)
 
 一个面向设备接入场景的最小可运行物联网平台。
 

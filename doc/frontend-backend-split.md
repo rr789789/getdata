@@ -51,10 +51,11 @@ Relevant backend environment variables:
 
 - `MVP_NODE_ID`: logical node identifier for logs and topology endpoints.
 - `MVP_NODE_ROLE`: `primary` or `standby`.
+- `MVP_SETUP_STATE_PATH`: install-lock state file used by the first-run installer.
 - `MVP_DISABLE_EMBEDDED_UI`: disables the legacy embedded console for split deployments.
 - `MVP_CORS_ALLOWED_ORIGINS`: comma-separated allowed origins for the web admin and desktop UI.
 - `MVP_HA_REPLICA_TOKEN`: shared secret for the standby snapshot endpoint.
-- `MVP_HA_REPLICA_PEERS`: comma-separated backend base URLs that receive `/_ha/snapshot`.
+- `MVP_HA_REPLICA_PEERS`: comma-separated backend base URLs that receive both `/_ha/snapshot` and `/_ha/setup`.
 - `MVP_HA_REPLICA_TIMEOUT`: timeout for snapshot pushes.
 
 Operational endpoints:
@@ -85,6 +86,8 @@ Set `MVP_DESKTOP_OPEN_BROWSER=false` if the desktop launcher should not open the
 ## HA And Load Balancing Notes
 
 The current file-backed store now supports active/standby replication by pushing persisted snapshots from the primary node to one or more standby nodes.
+
+The install state is also replicated, so a standby node will not reopen the first-run installer after the primary instance has already been initialized.
 
 This is suitable for:
 

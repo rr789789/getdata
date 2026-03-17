@@ -1,0 +1,282 @@
+:root {
+  --bg: #eef2f7;
+  --panel: rgba(255, 255, 255, 0.92);
+  --ink: #101828;
+  --muted: #667085;
+  --accent: #1d4ed8;
+  --accent-soft: rgba(29, 78, 216, 0.12);
+  --border: rgba(16, 24, 40, 0.08);
+  --shadow: 0 30px 70px rgba(16, 24, 40, 0.16);
+  --radius: 26px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI Variable", "SF Pro Display", "Helvetica Neue", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(29, 78, 216, 0.14), transparent 26%),
+    linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.shell {
+  width: min(1180px, calc(100% - 32px));
+  margin: 24px auto;
+  display: grid;
+  grid-template-columns: minmax(320px, 0.92fr) minmax(420px, 1.08fr);
+  gap: 18px;
+}
+
+.brand-panel,
+.install-panel {
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.brand-panel {
+  padding: 32px 28px;
+  background:
+    linear-gradient(180deg, rgba(10, 18, 36, 0.96), rgba(15, 23, 42, 0.92)),
+    radial-gradient(circle at top right, rgba(29, 78, 216, 0.28), transparent 28%);
+  color: #e6eefc;
+}
+
+.install-panel {
+  padding: 28px;
+}
+
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 11px;
+  color: #8ea3c9;
+}
+
+.brand-panel h1,
+.install-panel h2,
+.notes h3 {
+  margin: 0;
+  letter-spacing: -0.03em;
+}
+
+.brand-panel h1 {
+  margin-top: 12px;
+  font-size: clamp(34px, 4vw, 52px);
+  line-height: 0.98;
+}
+
+.copy {
+  margin-top: 18px;
+  color: #c3d3ee;
+  line-height: 1.75;
+}
+
+.glance-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.glance-list article {
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glance-list span {
+  display: block;
+  font-size: 12px;
+  color: #9eb2d3;
+}
+
+.glance-list strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 18px;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.panel-head h2 {
+  margin-top: 8px;
+  font-size: 30px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.install-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+}
+
+label {
+  display: grid;
+  gap: 8px;
+}
+
+label span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+input {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  outline: none;
+}
+
+input:focus {
+  border-color: rgba(29, 78, 216, 0.4);
+  box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.12);
+}
+
+.actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+button {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 20px;
+  background: linear-gradient(180deg, #2563eb, #1d4ed8);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.notes {
+  margin-top: 26px;
+  padding: 18px;
+  border-radius: 20px;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.notes h3 {
+  font-size: 18px;
+}
+
+.notes ul {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+/* Gitea-inspired setup page */
+body {
+  background: #f3f4f6;
+}
+
+.brand-panel,
+.install-panel {
+  border-radius: 16px;
+  border: 1px solid #d0d7de;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.brand-panel {
+  background: #24292f;
+}
+
+.install-panel {
+  background: #ffffff;
+}
+
+.glance-list article,
+.notes {
+  border-radius: 12px;
+}
+
+.glance-list article {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.status-pill {
+  background: #ddf4ff;
+  color: #0969da;
+}
+
+input {
+  border-radius: 8px;
+  border-color: #d0d7de;
+}
+
+input:focus {
+  border-color: #0969da;
+  box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.14);
+}
+
+button {
+  border-radius: 8px;
+  background: #1f6feb;
+}
+
+@media (max-width: 980px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .shell {
+    width: min(100% - 12px, 100%);
+    margin: 6px;
+  }
+
+  .brand-panel,
+  .install-panel {
+    padding: 18px;
+  }
+
+  .install-form {
+    grid-template-columns: 1fr;
+  }
+}

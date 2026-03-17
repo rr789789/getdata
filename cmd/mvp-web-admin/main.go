@@ -24,8 +24,9 @@ func main() {
 	}))
 
 	ui := api.NewUIHandler(api.UIOptions{
-		APIBaseURL: apiBaseURL,
-		AppTitle:   "MVP Web Admin",
+		APIBaseURL:       apiBaseURL,
+		AppTitle:         "MVP Web Admin",
+		DashboardEnabled: true,
 	})
 
 	mux := http.NewServeMux()

@@ -16,6 +16,7 @@ import (
 	"mvp-platform/internal/config"
 	"mvp-platform/internal/core"
 	"mvp-platform/internal/model"
+	"mvp-platform/internal/setup"
 	"mvp-platform/internal/simulator"
 	"mvp-platform/internal/store/memory"
 )
@@ -687,6 +688,150 @@ func TestReplicaSnapshotEndpoint(t *testing.T) {
 	}
 	if string(recorder.payload) != `{"version":1}` {
 		t.Fatalf("replica payload = %q, want %q", string(recorder.payload), `{"version":1}`)
+	}
+}
+
+func TestReplicaSetupEndpoint(t *testing.T) {
+	t.Parallel()
+
+	storage := memory.New(16)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	service := core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, logger)
+	installer, err := setup.NewManager(t.TempDir() + "/instance.json")
+	if err != nil {
+		t.Fatalf("setup.NewManager() error = %v", err)
+	}
+	server := api.NewServer(config.Config{
+		NodeID:       "standby-setup",
+		NodeRole:     "standby",
+		ReplicaToken: "secret-token",
+	}, service, nil, logger, api.WithInstaller(installer))
+
+	httpServer := httptest.NewServer(server.Handler())
+	defer httpServer.Close()
+
+	req, err := http.NewRequest(http.MethodPut, httpServer.URL+"/_ha/setup", bytes.NewReader([]byte(`{
+		"install_lock": true,
+		"app_name": "Factory IoT",
+		"site_url": "http://primary.local:8080",
+		"admin_username": "admin",
+		"admin_email": "admin@example.com",
+		"default_tenant_name": "Factory East",
+		"default_tenant_slug": "factory-east",
+		"installed_at": "2026-03-17T00:00:00Z",
+		"updated_at": "2026-03-17T00:00:00Z"
+	}`)))
+	if err != nil {
+		t.Fatalf("NewRequest(replica setup) error = %v", err)
+	}
+	req.Header.Set("X-Replica-Token", "secret-token")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT /_ha/setup error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("PUT /_ha/setup status = %d, want %d, body=%s", resp.StatusCode, http.StatusAccepted, string(body))
+	}
+
+	statusResp, err := http.Get(httpServer.URL + "/api/v1/install/status")
+	if err != nil {
+		t.Fatalf("GET /api/v1/install/status error = %v", err)
+	}
+	defer statusResp.Body.Close()
+
+	var statusPayload map[string]any
+	if err := json.NewDecoder(statusResp.Body).Decode(&statusPayload); err != nil {
+		t.Fatalf("decode install status error = %v", err)
+	}
+	if installed, _ := statusPayload["installed"].(bool); !installed {
+		t.Fatalf("install status should be true after setup replication: %#v", statusPayload)
+	}
+	if appName, _ := statusPayload["app_name"].(string); appName != "Factory IoT" {
+		t.Fatalf("replicated app_name = %q, want %q", appName, "Factory IoT")
+	}
+}
+
+func TestInstallBootstrapFlow(t *testing.T) {
+	t.Parallel()
+
+	storage := memory.New(16)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	service := core.NewService(storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, storage, logger)
+	installer, err := setup.NewManager(t.TempDir() + "/instance.json")
+	if err != nil {
+		t.Fatalf("setup.NewManager() error = %v", err)
+	}
+	server := api.NewServer(config.Config{GatewayDialAddr: "127.0.0.1:18830"}, service, nil, logger, api.WithInstaller(installer))
+
+	httpServer := httptest.NewServer(server.Handler())
+	defer httpServer.Close()
+
+	statusResp, err := http.Get(httpServer.URL + "/api/v1/install/status")
+	if err != nil {
+		t.Fatalf("GET /api/v1/install/status error = %v", err)
+	}
+	defer statusResp.Body.Close()
+
+	var statusPayload map[string]any
+	if err := json.NewDecoder(statusResp.Body).Decode(&statusPayload); err != nil {
+		t.Fatalf("decode install status error = %v", err)
+	}
+	if installed, _ := statusPayload["installed"].(bool); installed {
+		t.Fatal("install status should be false before bootstrap")
+	}
+
+	productsResp, err := http.Get(httpServer.URL + "/api/v1/products")
+	if err != nil {
+		t.Fatalf("GET /api/v1/products error = %v", err)
+	}
+	defer productsResp.Body.Close()
+	if productsResp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("GET /api/v1/products status = %d, want %d", productsResp.StatusCode, http.StatusServiceUnavailable)
+	}
+
+	indexResp, err := http.Get(httpServer.URL + "/")
+	if err != nil {
+		t.Fatalf("GET / error = %v", err)
+	}
+	defer indexResp.Body.Close()
+	indexBody, _ := io.ReadAll(indexResp.Body)
+	if !strings.Contains(string(indexBody), "install-form") {
+		t.Fatalf("GET / should render install page, body=%s", string(indexBody))
+	}
+
+	bootstrapBody := []byte(`{
+		"app_name":"Factory IoT",
+		"admin_username":"admin",
+		"admin_email":"admin@example.com",
+		"default_tenant_name":"Factory East",
+		"default_tenant_slug":"factory-east"
+	}`)
+	bootstrapResp, err := http.Post(httpServer.URL+"/api/v1/install/bootstrap", "application/json", bytes.NewReader(bootstrapBody))
+	if err != nil {
+		t.Fatalf("POST /api/v1/install/bootstrap error = %v", err)
+	}
+	defer bootstrapResp.Body.Close()
+	if bootstrapResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(bootstrapResp.Body)
+		t.Fatalf("POST /api/v1/install/bootstrap status = %d, want %d, body=%s", bootstrapResp.StatusCode, http.StatusCreated, string(body))
+	}
+
+	tenantsResp, err := http.Get(httpServer.URL + "/api/v1/tenants")
+	if err != nil {
+		t.Fatalf("GET /api/v1/tenants error = %v", err)
+	}
+	defer tenantsResp.Body.Close()
+
+	var tenants []model.TenantView
+	if err := json.NewDecoder(tenantsResp.Body).Decode(&tenants); err != nil {
+		t.Fatalf("decode tenants error = %v", err)
+	}
+	if len(tenants) != 1 || tenants[0].Tenant.Name != "Factory East" {
+		t.Fatalf("unexpected tenants after install bootstrap: %#v", tenants)
 	}
 }
 

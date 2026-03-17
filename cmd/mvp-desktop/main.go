@@ -27,9 +27,10 @@ func main() {
 	}))
 
 	ui := api.NewUIHandler(api.UIOptions{
-		APIBaseURL: apiBaseURL,
-		AppTitle:   "MVP Desktop Console",
-		Desktop:    true,
+		APIBaseURL:       apiBaseURL,
+		AppTitle:         "MVP Desktop Console",
+		Desktop:          true,
+		DashboardEnabled: true,
 	})
 
 	mux := http.NewServeMux()

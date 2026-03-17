@@ -11,6 +11,7 @@ import (
 type Config struct {
 	NodeID             string
 	NodeRole           string
+	SetupStatePath     string
 	HTTPAddr           string
 	GatewayAddr        string
 	GatewayDialAddr    string
@@ -38,6 +39,7 @@ func Load() Config {
 	return Config{
 		NodeID:             getEnv("MVP_NODE_ID", defaultNodeID()),
 		NodeRole:           normalizeNodeRole(getEnv("MVP_NODE_ROLE", "primary")),
+		SetupStatePath:     getEnv("MVP_SETUP_STATE_PATH", "./data/mvp-platform-instance.json"),
 		HTTPAddr:           getEnv("MVP_HTTP_ADDR", ":8080"),
 		GatewayAddr:        gatewayAddr,
 		GatewayDialAddr:    getEnv("MVP_GATEWAY_DIAL_ADDR", defaultGatewayDialAddr(gatewayAddr)),

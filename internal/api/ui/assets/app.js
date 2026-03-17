@@ -49,6 +49,15 @@ function runtimeModeLabel() {
   return `${mode} | ${target}`;
 }
 
+async function ensureInstalled() {
+  const status = await requestJSON("/api/v1/install/status");
+  if (status && status.installed === false) {
+    window.location.replace("/install");
+    return false;
+  }
+  return true;
+}
+
 const I18N = {
   zh: {
     app_title: "MVP IoT 控制台",
@@ -247,6 +256,7 @@ const appState = {
   currentView: "overview",
   health: null,
   metrics: null,
+  systemInfo: null,
   products: [],
   devices: [],
   groups: [],
@@ -416,6 +426,8 @@ function applyTranslations() {
   const overviewDevicePanel = document.getElementById("overview-device-list")?.closest(".panel");
   const overviewAlertPanel = document.getElementById("overview-alert-list")?.closest(".panel");
   const protocolPanel = document.getElementById("protocol-catalog-list")?.closest(".panel");
+  setText("#system-kicker", appState.locale === "zh" ? "系统" : "System");
+  setText("#system-title", appState.locale === "zh" ? "实例概览" : "Instance Summary");
   setText(overviewDevicePanel?.querySelector(".section-kicker"), appState.locale === "zh" ? "设备队列" : "Fleet");
   setText(overviewDevicePanel?.querySelector(".section-head h3"), t("recent_devices"));
   setText(overviewAlertPanel?.querySelector(".section-kicker"), appState.locale === "zh" ? "告警" : "Alert");
@@ -648,6 +660,48 @@ function renderOverview() {
       </article>
     `).join("");
   }
+}
+
+function formatToggle(value) {
+  if (appState.locale === "zh") {
+    return value ? "启用" : "关闭";
+  }
+  return value ? "Enabled" : "Disabled";
+}
+
+function renderSystemSummary() {
+  const container = document.getElementById("system-summary");
+  if (!container) {
+    return;
+  }
+
+  const info = appState.systemInfo;
+  if (!info) {
+    container.className = "detail-meta-grid empty";
+    container.textContent = appState.locale === "zh" ? "正在加载系统信息..." : "Loading system info...";
+    return;
+  }
+
+  const rows = [
+    [appState.locale === "zh" ? "安装状态" : "Install", info.installed ? (appState.locale === "zh" ? "已安装" : "Installed") : (appState.locale === "zh" ? "未安装" : "Pending")],
+    [appState.locale === "zh" ? "节点 ID" : "Node ID", info.node_id || "-"],
+    [appState.locale === "zh" ? "节点角色" : "Node Role", info.role || "-"],
+    [appState.locale === "zh" ? "备用模式" : "Standby", info.standby ? (appState.locale === "zh" ? "是" : "Yes") : (appState.locale === "zh" ? "否" : "No")],
+    [appState.locale === "zh" ? "存储后端" : "Store Backend", info.store_backend || "-"],
+    [appState.locale === "zh" ? "内嵌后台" : "Embedded UI", formatToggle(info.embedded_ui)],
+    [appState.locale === "zh" ? "TCP 网关" : "TCP Gateway", formatToggle(info.gateway_enabled)],
+    [appState.locale === "zh" ? "MQTT 服务" : "MQTT Broker", formatToggle(info.mqtt_enabled)],
+    [appState.locale === "zh" ? "配置文件" : "Setup File", info.setup_path || "-"],
+    [appState.locale === "zh" ? "数据文件" : "Store Path", info.store_persistence_path || "-"],
+  ];
+
+  container.className = "detail-meta-grid";
+  container.innerHTML = rows.map(([name, value]) => `
+    <article class="meta-tile">
+      <span>${escapeHTML(name)}</span>
+      <strong>${escapeHTML(formatValue(value))}</strong>
+    </article>
+  `).join("");
 }
 
 function syncSelect(id, options, emptyLabel) {
@@ -1363,9 +1417,10 @@ function activateView(viewId) {
 
 async function refreshAll() {
   const keepCurrentDetail = isEditingTextField();
-  const [health, metrics, catalog, products, devices, groups, rules, alerts, configProfiles, simulators] = await Promise.all([
+  const [health, metrics, systemInfo, catalog, products, devices, groups, rules, alerts, configProfiles, simulators] = await Promise.all([
     requestJSON("/healthz"),
     requestJSON("/metrics"),
+    requestJSON("/api/v1/system/info"),
     requestJSON("/api/v1/protocol-catalog"),
     requestJSON("/api/v1/products"),
     requestJSON("/api/v1/devices"),
@@ -1378,6 +1433,7 @@ async function refreshAll() {
 
   appState.health = health;
   appState.metrics = metrics;
+  appState.systemInfo = systemInfo;
   appState.protocolCatalog = catalog;
   appState.products = products;
   appState.devices = devices;
@@ -1398,6 +1454,7 @@ async function refreshAll() {
   renderStats(metrics);
   syncFormOptions();
   renderOverview();
+  renderSystemSummary();
   renderProducts();
   renderProtocolCatalog();
   renderDevices();
@@ -1649,6 +1706,10 @@ function handleGlobalError(error) {
 }
 
 async function bootstrap() {
+  const installed = await ensureInstalled();
+  if (!installed) {
+    return;
+  }
   bindNavigation();
   bindForms();
   activateView(appState.currentView);

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MVP IoT Install</title>
+  <link rel="stylesheet" href="/assets/install.css">
+</head>
+<body>
+  <div class="shell">
+    <section class="brand-panel">
+      <p class="eyebrow">Gitea Inspired Setup</p>
+      <h1 id="install-title">IoT Platform 安装向导</h1>
+      <p class="copy">
+        首次启动先完成实例初始化。这里不直接照搬 Gitea 的 Git 业务，而是复用它的安装锁、配置落盘、后台管理入口和首次引导思路。
+      </p>
+      <div class="glance-list">
+        <article>
+          <span>安装锁</span>
+          <strong>未安装前只开放安装接口</strong>
+        </article>
+        <article>
+          <span>配置落盘</span>
+          <strong id="setup-path">加载中...</strong>
+        </article>
+        <article>
+          <span>后台风格</span>
+          <strong>运维后台 / 管理台 / 状态面板</strong>
+        </article>
+      </div>
+    </section>
+
+    <section class="install-panel">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Step 1</p>
+          <h2>初始化实例</h2>
+        </div>
+        <span id="install-status" class="status-pill">等待安装</span>
+      </div>
+
+      <form id="install-form" class="install-form">
+        <label>
+          <span>平台名称</span>
+          <input id="app-name" type="text" value="MVP IoT Platform" required>
+        </label>
+        <label>
+          <span>站点地址</span>
+          <input id="site-url" type="text" placeholder="http://127.0.0.1:8080">
+        </label>
+        <label>
+          <span>管理员账号</span>
+          <input id="admin-username" type="text" value="admin" required>
+        </label>
+        <label>
+          <span>管理员邮箱</span>
+          <input id="admin-email" type="email" placeholder="admin@example.com">
+        </label>
+        <label>
+          <span>默认租户名称</span>
+          <input id="tenant-name" type="text" value="Default Tenant">
+        </label>
+        <label>
+          <span>默认租户标识</span>
+          <input id="tenant-slug" type="text" value="default">
+        </label>
+        <div class="actions">
+          <button type="submit">完成安装</button>
+          <span id="install-hint" class="hint"></span>
+        </div>
+      </form>
+
+      <div class="notes">
+        <h3>这一步会做什么</h3>
+        <ul>
+          <li>写入实例安装状态文件，类似 Gitea 的 `INSTALL_LOCK`。</li>
+          <li>保存平台名称、站点地址和管理员元信息。</li>
+          <li>如果当前还没有租户，自动创建一个默认租户，便于直接进入后台。</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+
+  <script src="/runtime-config.js"></script>
+  <script src="/assets/install.js" defer></script>
+</body>
+</html>

@@ -29,7 +29,7 @@ func (s *Server) withCORS(next http.Handler) http.Handler {
 
 func (s *Server) withStandbyGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.cfg.IsStandby() && isMutatingMethod(r.Method) && r.URL.Path != "/_ha/snapshot" {
+		if s.cfg.IsStandby() && isMutatingMethod(r.Method) && r.URL.Path != "/_ha/snapshot" && r.URL.Path != "/_ha/setup" {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{
 				"error":   "node is in standby mode",
 				"node_id": s.cfg.NodeID,
@@ -38,6 +38,25 @@ func (s *Server) withStandbyGuard(next http.Handler) http.Handler {
 			return
 		}
 		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) withInstallGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.installer == nil || s.installer.Installed() {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if allowDuringInstall(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+			"error":       "instance not installed",
+			"install_url": "/install",
+			"setup_path":  s.installer.Path(),
+			"node_id":     s.cfg.NodeID,
+		})
 	})
 }
 
@@ -68,10 +87,21 @@ func (s *Server) handleSystemInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	stats := s.service.Stats()
+	installed := true
+	setupPath := ""
+	var setupState any
+	if s.installer != nil {
+		installed = s.installer.Installed()
+		setupPath = s.installer.Path()
+		setupState = s.installer.Status()
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"node_id":                 s.cfg.NodeID,
 		"role":                    normalizedNodeRole(s.cfg.NodeRole),
 		"standby":                 s.cfg.IsStandby(),
+		"installed":               installed,
+		"setup_path":              setupPath,
+		"setup":                   setupState,
 		"embedded_ui":             !s.cfg.DisableEmbeddedUI,
 		"cors_allowed_origins":    s.cfg.CORSAllowedOrigins,
 		"replica_endpoint":        s.replica != nil,
@@ -141,6 +171,25 @@ func resolveAllowedOrigin(allowed []string, origin string) string {
 func isMutatingMethod(method string) bool {
 	switch method {
 	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return true
+	default:
+		return false
+	}
+}
+
+func allowDuringInstall(path string) bool {
+	switch {
+	case path == "/", path == "/install", path == "/runtime-config.js":
+		return true
+	case path == "/healthz", path == "/readyz", path == "/metrics":
+		return true
+	case path == "/api/v1/system/info":
+		return true
+	case path == "/api/v1/install/status", path == "/api/v1/install/bootstrap":
+		return true
+	case path == "/_ha/setup":
+		return true
+	case strings.HasPrefix(path, "/assets/"):
 		return true
 	default:
 		return false

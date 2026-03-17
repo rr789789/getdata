@@ -15,7 +15,11 @@ type replicaPersistHookSetter interface {
 	SetAfterPersistHook(func(context.Context, []byte))
 }
 
-func configureReplication(cfg config.Config, storage appStore, logger *slog.Logger) []func(*appOptions) {
+type setupPersistHookSetter interface {
+	SetAfterPersistHook(func(context.Context, []byte))
+}
+
+func configureReplication(cfg config.Config, storage appStore, installer interface{}, logger *slog.Logger) []func(*appOptions) {
 	var options []func(*appOptions)
 
 	if cfg.IsStandby() && strings.TrimSpace(cfg.ReplicaToken) != "" {
@@ -41,6 +45,9 @@ func configureReplication(cfg config.Config, storage appStore, logger *slog.Logg
 	}
 
 	hookSetter.SetAfterPersistHook(newReplicaPersistHook(cfg, logger.With("component", "replica")))
+	if hookSetter, ok := installer.(setupPersistHookSetter); ok {
+		hookSetter.SetAfterPersistHook(newReplicaSetupHook(cfg, logger.With("component", "replica-setup")))
+	}
 	return options
 }
 
@@ -54,19 +61,30 @@ func newReplicaPersistHook(cfg config.Config, logger *slog.Logger) func(context.
 
 	return func(_ context.Context, snapshot []byte) {
 		for _, peer := range peers {
-			replicateSnapshot(client, cfg, logger, peer, snapshot)
+			replicatePayload(client, cfg, logger, peer, "/_ha/snapshot", snapshot)
 		}
 	}
 }
 
-func replicateSnapshot(client *http.Client, cfg config.Config, logger *slog.Logger, peer string, snapshot []byte) {
+func newReplicaSetupHook(cfg config.Config, logger *slog.Logger) func(context.Context, []byte) {
+	peers := normalizeReplicaPeers(cfg.ReplicaPeers)
+	client := &http.Client{Timeout: cfg.ReplicaTimeout}
+
+	return func(_ context.Context, snapshot []byte) {
+		for _, peer := range peers {
+			replicatePayload(client, cfg, logger, peer, "/_ha/setup", snapshot)
+		}
+	}
+}
+
+func replicatePayload(client *http.Client, cfg config.Config, logger *slog.Logger, peer, endpoint string, snapshot []byte) {
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ReplicaTimeout)
 	defer cancel()
 
-	url := strings.TrimRight(peer, "/") + "/_ha/snapshot"
+	url := strings.TrimRight(peer, "/") + endpoint
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(snapshot))
 	if err != nil {
-		logger.Warn("unable to build replica snapshot request", "peer", peer, "error", err)
+		logger.Warn("unable to build replica request", "peer", peer, "endpoint", endpoint, "error", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -74,21 +92,22 @@ func replicateSnapshot(client *http.Client, cfg config.Config, logger *slog.Logg
 
 	resp, err := client.Do(req)
 	if err != nil {
-		logger.Warn("replica snapshot push failed", "peer", peer, "error", err)
+		logger.Warn("replica push failed", "peer", peer, "endpoint", endpoint, "error", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode/100 == 2 {
-		logger.Debug("replica snapshot pushed", "peer", peer, "status", resp.StatusCode)
+		logger.Debug("replica payload pushed", "peer", peer, "endpoint", endpoint, "status", resp.StatusCode)
 		_, _ = io.Copy(io.Discard, resp.Body)
 		return
 	}
 
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 	logger.Warn(
-		"replica snapshot rejected",
+		"replica push rejected",
 		"peer", peer,
+		"endpoint", endpoint,
 		"status", resp.StatusCode,
 		"body", strings.TrimSpace(string(body)),
 	)

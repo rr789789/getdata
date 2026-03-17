@@ -13,6 +13,7 @@ import (
 	"mvp-platform/internal/core"
 	"mvp-platform/internal/gateway"
 	"mvp-platform/internal/mqtt"
+	"mvp-platform/internal/setup"
 	"mvp-platform/internal/simulator"
 	"mvp-platform/internal/store"
 	storefile "mvp-platform/internal/store/file"
@@ -53,9 +54,13 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	setupManager, err := setup.NewManager(cfg.SetupStatePath)
+	if err != nil {
+		return nil, err
+	}
 
 	options := &appOptions{}
-	for _, option := range configureReplication(cfg, storage, logger) {
+	for _, option := range configureReplication(cfg, storage, setupManager, logger) {
 		if option != nil {
 			option(options)
 		}
@@ -65,6 +70,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 	simulators := simulator.NewManager(cfg, service, logger.With("component", "simulator"))
 
 	apiOptions := make([]api.ServerOption, 0, 1)
+	apiOptions = append(apiOptions, api.WithInstaller(setupManager))
 	if options.enableReplicaApplier != nil {
 		apiOptions = append(apiOptions, api.WithReplicaApplier(options.enableReplicaApplier))
 	}

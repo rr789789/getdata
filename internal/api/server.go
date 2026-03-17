@@ -16,6 +16,7 @@ import (
 	"mvp-platform/internal/core"
 	"mvp-platform/internal/model"
 	"mvp-platform/internal/simulator"
+	"mvp-platform/internal/setup"
 	"mvp-platform/internal/store"
 	"mvp-platform/internal/util"
 )
@@ -27,10 +28,19 @@ type Server struct {
 	logger     *slog.Logger
 	ui         http.Handler
 	replica    replicaApplier
+	installer  installManager
 }
 
 type replicaApplier interface {
 	ApplyReplicaSnapshot([]byte) error
+}
+
+type installManager interface {
+	Path() string
+	Status() setup.State
+	Installed() bool
+	Bootstrap(setup.BootstrapRequest) (setup.State, error)
+	ApplyReplicaState([]byte) error
 }
 
 type ServerOption func(*Server)
@@ -38,6 +48,12 @@ type ServerOption func(*Server)
 func WithReplicaApplier(applier replicaApplier) ServerOption {
 	return func(server *Server) {
 		server.replica = applier
+	}
+}
+
+func WithInstaller(installer installManager) ServerOption {
+	return func(server *Server) {
+		server.installer = installer
 	}
 }
 
@@ -52,13 +68,17 @@ func NewServer(cfg config.Config, service *core.Service, simulators *simulator.M
 		simulators: simulators,
 		logger:     logger,
 	}
-	if !cfg.DisableEmbeddedUI {
-		server.ui = NewUIHandler(UIOptions{AppTitle: "MVP IoT Console"})
-	}
 	for _, option := range options {
 		if option != nil {
 			option(server)
 		}
+	}
+	if !cfg.DisableEmbeddedUI || server.installer != nil {
+		server.ui = NewUIHandler(UIOptions{
+			AppTitle:         "MVP IoT Console",
+			DashboardEnabled: !cfg.DisableEmbeddedUI,
+			Installer:        server.installer,
+		})
 	}
 	return server
 }
@@ -69,6 +89,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/readyz", s.handleReady)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	mux.HandleFunc("/api/v1/system/info", s.handleSystemInfo)
+	mux.HandleFunc("/api/v1/install/status", s.handleInstallStatus)
+	mux.HandleFunc("/api/v1/install/bootstrap", s.handleInstallBootstrap)
 	mux.HandleFunc("/api/v1/protocol-catalog", s.handleProtocolCatalog)
 	mux.HandleFunc("/api/v1/tenants", s.handleTenants)
 	mux.HandleFunc("/api/v1/ingest/http/", s.handleHTTPIngestRoutes)
@@ -90,12 +112,15 @@ func (s *Server) Handler() http.Handler {
 	if s.replica != nil {
 		mux.HandleFunc("/_ha/snapshot", s.handleReplicaSnapshot)
 	}
+	if s.installer != nil {
+		mux.HandleFunc("/_ha/setup", s.handleReplicaSetup)
+	}
 	if s.ui != nil {
 		mux.Handle("/assets/", s.ui)
 		mux.Handle("/runtime-config.js", s.ui)
 		mux.Handle("/", s.ui)
 	}
-	return s.instrument(s.withCORS(s.withStandbyGuard(mux)))
+	return s.instrument(s.withCORS(s.withStandbyGuard(s.withInstallGuard(mux))))
 }
 
 func (s *Server) Run(ctx context.Context) error {
